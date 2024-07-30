@@ -5,14 +5,21 @@
   import { showMenu } from "tauri-plugin-context-menu";
   import { onMount } from "svelte";
   import * as monaco from "monaco-editor";
+  import ace from "brace";
+  import "brace/mode/lua";
+  import "brace/theme/tomorrow_night_eighties";
+  import "brace/ext/language_tools";
+  import "brace/ext/searchbox";
   import Icon from "./sxlogosmallwhite_OJJ_icon.ico";
 
   const version = "v1.2";
   const baseTitle = "Synapse X - " + version;
 
   let title = baseTitle;
+  let tabs = [];
+  let sessions: monaco.editor.ICodeEditorViewState[] | ace.IEditSession[] = [];
   let scripts: string[] = [];
-  let editor: monaco.editor.IStandaloneCodeEditor;
+  let editor: monaco.editor.IStandaloneCodeEditor | ace.Editor;
   let config = {
     alwaysOnTop: true,
     autoAttach: true,
@@ -133,15 +140,23 @@
       }
     }, 10000);
 
-    editor = monaco.editor.create(document.getElementById("monaco")!, {
+    editor = ace.edit("editor");
+    editor.setTheme("ace/theme/tomorrow_night_eighties");
+    editor.session.setMode("ace/mode/lua");
+    editor.setBehavioursEnabled(true);
+    editor.setOptions({
+      enableBasicAutocompletion: true,
+      enableLiveAutocompletion: true
+    });
+    /*monaco.editor.create(document.getElementById("monaco")!, {
       value: localStorage.getItem("script") ?? 'print("Hello World!")',
       language: "lua",
       theme: "vs-dark",
       automaticLayout: true
-    });
+    });*/
 
     let updateSession = 0;
-    editor.onDidChangeModelContent((event) => {
+    /*editor.onDidChangeModelContent((event) => {
       const sessionId = ++updateSession;
 
       // Only update if text wasn't changed for 3s
@@ -149,7 +164,7 @@
         if (updateSession === sessionId)
           localStorage.setItem("script", editor.getValue());
       }, 3000);
-    });
+    });*/
 
     invoke("scriptbox_refresh")
       .then((_scripts) => {
@@ -315,6 +330,11 @@
         console.error("Error on open_popup:", e);
       });
   }
+
+  /*session = JSON.parse(localStorage.getItem('session'));
+  editSession = createEditSession(session);
+  editor = editors.my_textarea;
+  editor.setSession(editSession);*/
 </script>
 
 <header id="topBox" data-tauri-drag-region>
@@ -333,7 +353,16 @@
 
 <main>
   <div id="scriptContainer">
-    <div id="monaco" />
+    <div id="editorContainer">
+      <div id="tabContainer">
+        <div class="tab">
+          Script 0
+          <span class="close-tab">×</span>
+        </div>
+        <div id="newTab">+</div>
+      </div>
+      <div id="editor" />
+    </div>
 
     <div id="scriptBox">
       <ul>
@@ -344,7 +373,7 @@
     </div>
   </div>
 
-  <div id="buttonContainer" class="buttoncontainer">
+  <div id="buttonContainer">
     <button id="execute" class="button left-align" on:click={ onExecute }>
       Execute
     </button>
@@ -381,15 +410,19 @@
     min-height: 0;
   }
 
+  @font-face {
+    font-family: "Segoe UI";
+    src: url(https://github.com/shipfam/shipfam.com/raw/master/fonts/segoe-ui.woff) format("woff");
+  }
+
   button {
     border: 0;
   }
 
   :root {
-    font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont;
+    font-family: "Segoe UI";
     font-size: 12px;
     line-height: 24px;
-    font-weight: 500;
     margin: 0;
 
     color: #ffffff;
@@ -428,7 +461,6 @@
     height: 22px;
     color: inherit;
     font-size: 12px;
-    font-weight: 500;
     background-color: inherit;
   }
 
@@ -440,7 +472,6 @@
     height: 22px;
     color: inherit;
     font-size: 12px;
-    font-weight: 500;
     background-color: inherit;
   }
 
@@ -466,7 +497,50 @@
     margin-right: 6px;
   }
 
-  #monaco {
+  #editorContainer {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+  }
+
+  #tabContainer {
+    display: flex;
+    height: 20px;
+  }
+
+  .tab {
+    cursor: default;
+    background-color: #757575;
+    line-height: 20px;
+    padding-left: 5px;
+  }
+
+  .close-tab {
+    font-size: 14px;
+    padding-right: 5px;
+  }
+
+  #newTab {
+    cursor: default;
+    width: 12px;
+    height: 12px;
+    margin-left: 5px;
+    margin-top: 4px;
+    padding-left: 1px;
+    padding-bottom: 1px;
+    font-size: 18px;
+    line-height: 10px;
+    background-color: #757575;
+    box-shadow: 0 0 0 1px #959595;
+    text-align: center;
+  }
+
+  #newTab:hover {
+    background-color: #555555;
+    box-shadow: 0 0 0 1px #656565;
+  }
+
+  #editor {
     flex-grow: 1;
   }
 
@@ -484,9 +558,10 @@
   }
 
   li {
-    cursor: pointer;
+    cursor: default;
     padding-left: 6px;
     padding-right: 6px;
+    line-height: 20px;
     text-overflow: ellipsis;
     white-space: nowrap;
     overflow: hidden;
@@ -516,6 +591,7 @@
   }
 
   .button {
+    font-family: "Segoe UI";
     width: 91px;
     height: 33px;
     font-size: 14px;
