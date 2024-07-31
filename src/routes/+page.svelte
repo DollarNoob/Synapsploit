@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/tauri";
-  import { listen } from "@tauri-apps/api/event";
-  import { appWindow } from "@tauri-apps/api/window";
-  import { showMenu } from "tauri-plugin-context-menu";
-  import { onMount } from "svelte";
+  import {invoke} from "@tauri-apps/api/tauri";
+  import {listen} from "@tauri-apps/api/event";
+  import {appWindow} from "@tauri-apps/api/window";
+  import {showMenu} from "tauri-plugin-context-menu";
+  import {onMount} from "svelte";
   import * as monaco from "monaco-editor";
   import ace from "brace";
   import "brace/mode/lua";
@@ -15,9 +15,15 @@
   const version = "v1.2";
   const baseTitle = "Synapse X - " + version;
 
+  interface SessionInfo {
+    name: string;
+    session: monaco.editor.ICodeEditorViewState | ace.IEditSession;
+  }
+
+  let sessionIndex = 0;
   let title = baseTitle;
-  let tabs = [];
-  let sessions: monaco.editor.ICodeEditorViewState[] | ace.IEditSession[] = [];
+  let tabs: SessionInfo[] = [];
+  let currentTab: SessionInfo;
   let scripts: string[] = [];
   let editor: monaco.editor.IStandaloneCodeEditor | ace.Editor;
   let config = {
@@ -28,7 +34,7 @@
   };
 
   listen("executeScript", event => {
-    invoke("scriptbox_execute", { path: event.payload })
+    invoke("scriptbox_execute", {path: event.payload})
       .catch((e: string) => {
         if (e === "NotInjected")
           return updateTitle("(not injected! press attach)");
@@ -37,7 +43,7 @@
   });
 
   listen("loadScript", event => {
-    invoke("scriptbox_load", { path: event.payload })
+    invoke("scriptbox_load", {path: event.payload})
       .then((script) => {
         editor.setValue(script as string);
       })
@@ -46,7 +52,7 @@
       });
   });
 
-  listen("refreshScript", event => {
+  listen("refreshScript", () => {
     invoke("scriptbox_refresh")
       .then((_scripts) => {
         scripts = _scripts as string[];
@@ -57,86 +63,67 @@
   });
 
   onMount(async () => {
-    window.addEventListener("contextmenu", async (e) => {
-      e.preventDefault();
+    const anyWindow = window as any;
+    if (!anyWindow.hookFunc) {
+      anyWindow.hookFunc = async (e: Event) => {
+        e.preventDefault();
 
-      if (e.target === document.getElementById("scriptBox")) {
-        showMenu({
-          items: [
-            {
-              label: "Execute",
-              event: "executeScript",
-              disabled: true
-            },
-            {
-              label: "Load to Editor",
-              event: "loadScript",
-              disabled: true
-            },
-            {
-              label: "Refresh",
-              event: "refreshScript"
-            }
-          ]
-        });
-        return;
-      } else if (e.target instanceof HTMLLIElement) {
-        showMenu({
-          items: [
-            {
-              label: "Execute",
-              event: "executeScript",
-              payload: e.target.getAttribute("data-path")
-            },
-            {
-              label: "Load to Editor",
-              event: "loadScript",
-              payload: e.target.getAttribute("data-path")
-            },
-            {
-              label: "Refresh",
-              event: "refreshScript"
-            }
-          ]
-        });
-      }
-    });
+        if (e.target === document.getElementById("scriptBox")) {
+          await showMenu({
+            items: [
+              {
+                label: "Execute",
+                event: "executeScript",
+                disabled: true
+              },
+              {
+                label: "Load to Editor",
+                event: "loadScript",
+                disabled: true
+              },
+              {
+                label: "Refresh",
+                event: "refreshScript"
+              }
+            ]
+          });
+          return;
+        } else if (e.target instanceof HTMLLIElement) {
+          await showMenu({
+            items: [
+              {
+                label: "Execute",
+                event: "executeScript",
+                payload: e.target.getAttribute("data-path")
+              },
+              {
+                label: "Load to Editor",
+                event: "loadScript",
+                payload: e.target.getAttribute("data-path")
+              },
+              {
+                label: "Refresh",
+                event: "refreshScript"
+              }
+            ]
+          });
+          return;
+        }
+      };
+      window.addEventListener("contextmenu", anyWindow.hookFunc);
+    }
 
-    setInterval(() => {
-      invoke("read_config")
-        .then(async (cfg) => {
-          const [alwaysOnTop, autoAttach, autoExecute, scanPort] = cfg as boolean[];
-          config.alwaysOnTop = alwaysOnTop;
-          config.autoAttach = autoAttach;
-          config.autoExecute = autoExecute;
-          config.scanPort = scanPort;
-        })
-        .catch((e: string) => {
-          console.error("Error on read_config:", e);
-        });
-    }, 60000);
+    if (!!anyWindow.readConfigInterval) clearInterval(anyWindow.readConfigInterval);
+    if (!!anyWindow.autoAttachInterval) clearInterval(anyWindow.autoAttachInterval);
 
-    setInterval(async () => {
+    anyWindow.readConfigInterval = setInterval(readConfigAndSet, 60000);
+    anyWindow.autoAttachInterval = setInterval(async () => {
       if (!config.autoAttach) return;
 
       // 5553 ~ 5563 for each roblox window
-      for (let i = 5553; i <= (config.scanPort ? 5563 : 5553); i++) {
-        const retry = await invoke("attach", { port: i })
-          .then(() => {
-            updateTitle("(ready!)");
-            return false;
-          })
-          .catch((e: string) => {
-            if (e.includes("Connection refused"))
-              return true;
-            else if (e === "SocketNotAlive")
-              return true;
-            else if (e === "AlreadyInjected")
-              return false;
-            console.error("Error on attach:", e);
-            return false;
-          });
-        if (!retry) break;
+      const status = await attach();
+      if (status === AttachStatus.SUCCESS) {
+        updateTitle('(ready!)');
       }
     }, 10000);
 
@@ -148,23 +135,29 @@
       enableBasicAutocompletion: true,
       enableLiveAutocompletion: true
     });
-    /*monaco.editor.create(document.getElementById("monaco")!, {
-      value: localStorage.getItem("script") ?? 'print("Hello World!")',
-      language: "lua",
-      theme: "vs-dark",
-      automaticLayout: true
-    });*/
 
-    let updateSession = 0;
-    /*editor.onDidChangeModelContent((event) => {
-      const sessionId = ++updateSession;
+    // @ts-ignore
+    const editSession = ace.createEditSession("", "ace/mode/lua");
+    tabs.push({name: `Script ${++sessionIndex}`, session: editSession});
+    tabs = tabs;
+    switchTab(tabs[0])();
 
-      // Only update if text wasn't changed for 3s
-      setTimeout(() => {
-        if (updateSession === sessionId)
-          localStorage.setItem("script", editor.getValue());
-      }, 3000);
-    });*/
+    // monaco.editor.create(document.getElementById("monaco")!, {
+    //   value: localStorage.getItem("script") ?? 'print("Hello World!")',
+    //   language: "lua",
+    //   theme: "vs-dark",
+    //   automaticLayout: true
+    // });
+
+    // editor.onDidChangeModelContent((event) => {
+    //   const sessionId = ++updateSession;
+    //
+    //   // Only update if text wasn't changed for 3s
+    //   setTimeout(() => {
+    //     if (updateSession === sessionId)
+    //       localStorage.setItem("script", editor.getValue());
+    //   }, 3000);
+    // });
 
     invoke("scriptbox_refresh")
       .then((_scripts) => {
@@ -174,23 +167,25 @@
         console.error("Error on scriptbox_refresh:", e);
       });
 
+    readConfigAndSet();
+  });
+
+  let titleSession = 0;
+
+  function readConfigAndSet() {
     invoke("read_config")
       .then(async (cfg) => {
         const [alwaysOnTop, autoAttach, autoExecute, scanPort] = cfg as boolean[];
-        await appWindow.setAlwaysOnTop(alwaysOnTop);
         config.alwaysOnTop = alwaysOnTop;
         config.autoAttach = autoAttach;
         config.autoExecute = autoExecute;
         config.scanPort = scanPort;
-        await appWindow.show();
-        console.log("Config", cfg);
       })
       .catch((e: string) => {
         console.error("Error on read_config:", e);
       });
-  });
+  }
 
-  let titleSession = 0;
   function updateTitle(text: string) {
     const sessionId = ++titleSession;
     title = baseTitle + " " + text;
@@ -202,7 +197,37 @@
     }, 3000);
   }
 
+  function newTab(name?: string, content?: string) {
+    // @ts-ignore
+    const session = ace.createEditSession(content || "", "ace/mode/lua");
+    const toAdded = {name: name || `Script ${++sessionIndex}`, session};
+    tabs.push(toAdded);
+    tabs = tabs;
+    switchTab(toAdded)();
+  }
+
+  function switchTab(tab: SessionInfo) {
+    return () => {
+      currentTab = tab;
+      (<ace.Editor>editor).setSession(<ace.IEditSession>tab.session);
+    }
+  }
+
+  function closeTab(tab: SessionInfo) {
+    return () => {
+      if (tabs.length <= 1) return; // no close
+      const index = tabs.indexOf(tab);
+      tabs.splice(index, 1);
+      tabs = tabs;
+
+      if (currentTab === tab) {
+        switchTab(tabs[tabs.length == index ? tabs.length - 1 : index])();
+      }
+    }
+  }
+
   let iconClicks = 0;
+
   function onIcon() {
     invoke("open_popup", (++iconClicks) % 5 === 0 ? {
       title: "Synapsploit Credits",
@@ -233,11 +258,11 @@
   }
 
   function onMinimize() {
-    invoke("minimize_window");
+    appWindow.minimize();
   }
 
   function onExecute() {
-    invoke("execute", { script: editor.getValue() })
+    invoke("execute", {script: editor.getValue()})
       .catch((e: string) => {
         if (e === "NotInjected")
           return updateTitle("(not injected! press attach)");
@@ -251,7 +276,12 @@
 
   function onOpenFile() {
     invoke("open_file")
-      .then((script) => editor.setValue(script as string))
+      .then((script) => {
+        const [path, content] = script as string[];
+        // console.log(path);
+        newTab(path.split('/').pop(), content);
+        // editor.setValue(content);
+      })
       .catch((e: string) => {
         if (e === "FileNotSelected") return;
         console.error("Error on open_file:", e);
@@ -269,7 +299,7 @@
   }
 
   function onSaveFile() {
-    invoke("save_file", { contents: editor.getValue() })
+    invoke("save_file", {contents: editor.getValue()})
       .catch((e: string) => {
         if (e === "FileNotSelected") return;
         console.error("Error on save_file:", e);
@@ -280,29 +310,31 @@
     invoke("open_options");
   }
 
-  async function onAttach() {
-    updateTitle("(injecting...)");
+  enum AttachStatus {
+    SUCCESS = 0,
+    ALREADY_INJECTED = 1,
+    ATTACH_FAILED = 2,
+    FAILURE = 4
+  }
+
+  async function attach(): Promise<AttachStatus> {
+    let status: AttachStatus = AttachStatus.FAILURE;
 
     // 5553 ~ 5563 for each roblox window
-    let failed = true, attachFailed = false;
     for (let i = 5553; i <= (config.scanPort ? 5563 : 5553); i++) {
-      console.log(i);
-      const retry = await invoke("attach", { port: i })
+      const retry = await invoke("attach", {port: i})
         .then(() => {
-          updateTitle("(ready!)");
-          failed = false;
+          status = AttachStatus.SUCCESS;
           return false;
         })
         .catch((e: string) => {
           if (e.includes("Connection refused"))
             return true;
           else if (e === "SocketNotAlive") {
-            attachFailed = true;
+            status = AttachStatus.ATTACH_FAILED;
             return true;
-          }
-          else if (e === "AlreadyInjected") {
-            updateTitle("(already injected!)");
-            failed = false;
+          } else if (e === "AlreadyInjected") {
+            status = AttachStatus.ALREADY_INJECTED;
             return false;
           }
           console.error("Error on attach:", e);
@@ -310,9 +342,31 @@
         });
       if (!retry) break;
     }
+    return status;
+  }
 
-    if (failed)
-      updateTitle(attachFailed ? "(failed to attach!)" : "(failed to find roblox!)");
+  async function onAttach() {
+    updateTitle("(injecting...)");
+
+    const status = await attach();
+
+    let message = '';
+    switch (status) {
+      case AttachStatus.SUCCESS:
+        message = '(ready!)';
+        break;
+      case AttachStatus.ATTACH_FAILED:
+        message = '(failed to attach!)';
+        break;
+      case AttachStatus.FAILURE:
+        message = '(failed to find roblox!)'
+        break;
+      case AttachStatus.ALREADY_INJECTED:
+        message = '(already injected!)';
+        break;
+    }
+
+    updateTitle(message);
   }
 
   function onScriptHub() {
@@ -355,13 +409,18 @@
   <div id="scriptContainer">
     <div id="editorContainer">
       <div id="tabContainer">
-        <div class="tab">
-          Script 0
-          <span class="close-tab">×</span>
-        </div>
-        <div id="newTab">+</div>
+        {#each tabs as session, i}
+          <button data-path={ session } class="tab" class:tab-sel={currentTab === session}
+               on:click={switchTab(session)}>
+            { session.name }
+            <button class="close-tab" on:click|stopPropagation={ closeTab(session) }>×</button>
+          </button>
+        {:else}
+          TODO: EMPTY HANDLING
+        {/each}
+        <button id="newTab" on:click={ () => newTab() }>+</button>
       </div>
-      <div id="editor" />
+      <div id="editor"/>
     </div>
 
     <div id="scriptBox">
@@ -416,11 +475,13 @@
   }
 
   button {
+    padding: initial;
+    color: unset;
     border: 0;
   }
 
   :root {
-    font-family: "Segoe UI";
+    font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont;
     font-size: 12px;
     line-height: 24px;
     margin: 0;
@@ -509,30 +570,43 @@
   }
 
   .tab {
+    font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont;
+    font-size: 12px;
     cursor: default;
-    background-color: #757575;
+    background-color: #858585;
     line-height: 20px;
+    font-style: inherit;
     padding-left: 5px;
   }
 
+  .tab-sel {
+    background-color: #757575;
+    color: #fff;
+  }
+
   .close-tab {
+    color: white;
+    background-color: inherit;
     font-size: 14px;
-    padding-right: 5px;
+    padding: 0 5px 0 0;
   }
 
   #newTab {
+    font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont;
+    color: white;
     cursor: default;
     width: 12px;
     height: 12px;
     margin-left: 5px;
     margin-top: 4px;
-    padding-left: 1px;
-    padding-bottom: 1px;
     font-size: 18px;
-    line-height: 10px;
     background-color: #757575;
     box-shadow: 0 0 0 1px #959595;
+    padding-bottom: 4px;
     text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   #newTab:hover {
@@ -591,12 +665,12 @@
   }
 
   .button {
-    font-family: "Segoe UI";
-    width: 91px;
-    height: 33px;
-    font-size: 14px;
+    font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont;
     color: white;
     background-color: #3C3C3C;
+    font-size: 14px;
+    width: 91px;
+    height: 33px;
   }
 
   .button:hover {

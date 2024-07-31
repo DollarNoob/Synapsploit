@@ -4,6 +4,7 @@ mod msapi;
 
 use serde::Serialize;
 use serde::Deserialize;
+use std::{env, path};
 use std::cmp::{min, max};
 use std::sync::Mutex;
 use std::fs;
@@ -149,14 +150,19 @@ fn execute(state: State<AppState>, script: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn open_file() -> Result<String, String> {
+fn open_file() -> Result<Vec<String>, String> {
     if let Some(path) = FileDialog::new()
         .set_title("Synapse X - Open File")
         .add_filter("Script Files", &["lua", "txt"])
         .pick_file()
     {
-        let script = fs::read_to_string(path).expect("Failed to read file. Check if it is accessible.");
-        Ok(script)
+        let mut vec: Vec<String> = Vec::new();
+        let script = fs::read_to_string(path.clone()).expect("Failed to read file. Check if it is accessible.");
+
+        let path_str = path::absolute(path).unwrap().display().to_string();
+        vec.push(path_str);
+        vec.push(script);
+        Ok(vec.into())
     } else {
         Err("FileNotSelected".into())
     }
@@ -244,13 +250,6 @@ fn open_folder(handle: AppHandle, folder_name: String) -> Result<(), String> {
         .unwrap();
 
     Ok(())
-}
-
-#[tauri::command]
-fn minimize_window(handle: AppHandle) {
-    let window = handle.get_window("main").unwrap();
-    window.hide().expect("Failed to hide window");
-    handle.tray_handle().get_item("toggle-visibility").set_title("Show").expect("Failed to set title");
 }
 
 #[tauri::command]
@@ -412,7 +411,6 @@ fn main() {
             open_options,
             open_folder,
             attach,
-            minimize_window,
             close_window,
             scriptbox_execute,
             scriptbox_load,
