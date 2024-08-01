@@ -17,12 +17,12 @@
     });
 
     invoke("read_config")
-      .then(async (cfg) => {
-        const [alwaysOnTop, autoAttach, autoExecute, scanPort] = cfg as boolean[];
-        config.alwaysOnTop = alwaysOnTop;
-        config.autoAttach = autoAttach;
-        config.autoExecute = autoExecute;
-        config.scanPort = scanPort;
+      .then((cfg) => {
+        const { always_on_top, auto_attach, auto_execute, scan_port } = cfg as { [name: string]: boolean };
+        config.alwaysOnTop = always_on_top;
+        config.autoAttach = auto_attach;
+        config.autoExecute = auto_execute;
+        config.scanPort = scan_port;
 
         // Small trick to show the window after loading (so you dont see the plain-white loading page)
         setTimeout(() => appWindow.show(), 50);
@@ -89,13 +89,13 @@
   </div>
 
   <div id="buttonContainer">
-    <button id="openAutoExecButton" class="button" on:click={ onAutoExec }>
+    <button class="button" on:click={ onAutoExec }>
       Open Auto Execute Folder
     </button>
-    <button id="openScriptsButton" class="button" on:click={ onScripts }>
+    <button class="button" on:click={ onScripts }>
       Open Scripts Folder
     </button>
-    <button id="closeButton" class="button" on:click={ onClose }>
+    <button class="button" on:click={ onClose }>
       Close
     </button>
   </div>

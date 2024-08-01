@@ -16,6 +16,16 @@
         "all": false,
         "open": true
       },
+      "dialog": {
+        "open": true,
+        "save": true
+      },
+      "fs": {
+        "readFile": true,
+        "writeFile": true,
+        "readDir": true,
+        "scope": ["$APPDATA/scripts", "$APPDATA/scripts/*"]
+      },
       "window": {
         "all": false,
         "close": true,
@@ -36,8 +46,7 @@
         "width": 801,
         "height": 355,
         "decorations": false,
-        "alwaysOnTop": false,
-        "visible": false
+        "alwaysOnTop": false
       }
     ],
     "security": {

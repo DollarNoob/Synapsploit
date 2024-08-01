@@ -4,12 +4,15 @@
   import {appWindow} from "@tauri-apps/api/window";
   import {showMenu} from "tauri-plugin-context-menu";
   import {onMount} from "svelte";
+  import { dialog, fs } from "@tauri-apps/api";
+  import { BaseDirectory } from "@tauri-apps/api/fs";
   import * as monaco from "monaco-editor";
-  import ace from "brace";
-  import "brace/mode/lua";
-  import "brace/theme/tomorrow_night_eighties";
-  import "brace/ext/language_tools";
-  import "brace/ext/searchbox";
+  import ace, { Ace } from "ace-builds";
+  import "ace-builds/src-noconflict/mode-lua";
+  import "ace-builds/src-noconflict/worker-lua";
+  import "ace-builds/src-noconflict/theme-tomorrow_night_eighties";
+  import "ace-builds/src-noconflict/ext-language_tools";
+  import "ace-builds/src-noconflict/ext-searchbox";
   import Icon from "./sxlogosmallwhite_OJJ_icon.ico";
 
   const version = "v1.2";
@@ -17,7 +20,7 @@
 
   interface SessionInfo {
     name: string;
-    session: monaco.editor.ICodeEditorViewState | ace.IEditSession;
+    session: monaco.editor.ICodeEditorViewState | Ace.EditSession;
   }
 
   let sessionIndex = 0;
@@ -25,7 +28,7 @@
   let tabs: SessionInfo[] = [];
   let currentTab: SessionInfo;
   let scripts: string[] = [];
-  let editor: monaco.editor.IStandaloneCodeEditor | ace.Editor;
+  let editor: monaco.editor.IStandaloneCodeEditor | Ace.Editor;
   let config = {
     alwaysOnTop: true,
     autoAttach: true,
@@ -33,34 +36,41 @@
     scanPort: true
   };
 
-  listen("executeScript", event => {
-    invoke("scriptbox_execute", {path: event.payload})
-      .catch((e: string) => {
-        if (e === "NotInjected")
-          return updateTitle("(not injected! press attach)");
-        console.error("Error on scriptbox_execute:", e);
+  listen("config-update", (event) => {
+    const [alwaysOnTop, autoAttach, autoExecute, scanPort] = (event.payload as string).split("").map(bool => bool === "1");
+    config.alwaysOnTop = alwaysOnTop;
+    config.autoAttach = autoAttach;
+    config.autoExecute = autoExecute;
+    config.scanPort = scanPort;
+    appWindow.setAlwaysOnTop(alwaysOnTop);
+  });
+
+  listen("executeScript", (event) => {
+    fs.readTextFile(event.payload as string)
+      .then((data) => {
+        invoke("execute", { script: data })
+          .catch((err: string) => {
+            if (err === "NotInjected")
+              return updateTitle("(not injected! press attach)");
+            console.error("Error on execute:", err);
+          });
+      })
+      .catch((err) => {
+        console.error("Error on executeScript:", err);
       });
   });
 
-  listen("loadScript", event => {
-    invoke("scriptbox_load", {path: event.payload})
-      .then((script) => {
-        editor.setValue(script as string);
+  listen("loadScript", (event) => {
+    fs.readTextFile(event.payload as string)
+      .then((data) => {
+        editor.setValue(data);
       })
-      .catch((e: string) => {
-        console.error("Error on scriptbox_load:", e);
+      .catch((err) => {
+        console.error("Error on loadScript:", err);
       });
   });
 
-  listen("refreshScript", () => {
-    invoke("scriptbox_refresh")
-      .then((_scripts) => {
-        scripts = _scripts as string[];
-      })
-      .catch((e: string) => {
-        console.error("Error on scriptbox_refresh:", e);
-      });
-  });
+  listen("refreshScript", refreshScripts);
 
   onMount(async () => {
     const anyWindow = window as any;
@@ -113,23 +123,21 @@
       window.addEventListener("contextmenu", anyWindow.hookFunc);
     }
 
-    if (!!anyWindow.readConfigInterval) clearInterval(anyWindow.readConfigInterval);
-    if (!!anyWindow.autoAttachInterval) clearInterval(anyWindow.autoAttachInterval);
+    if (typeof anyWindow.autoAttachInterval !== "number") {
+      anyWindow.autoAttachInterval = setInterval(async () => {
+        if (!config.autoAttach) return;
 
-    anyWindow.readConfigInterval = setInterval(readConfigAndSet, 60000);
-    anyWindow.autoAttachInterval = setInterval(async () => {
-      if (!config.autoAttach) return;
+        const status = await attach();
+        if (status === AttachStatus.SUCCESS) {
+          updateTitle("(ready!)");
+        }
+      }, 1000);
+    }
 
-      // 5553 ~ 5563 for each roblox window
-      const status = await attach();
-      if (status === AttachStatus.SUCCESS) {
-        updateTitle('(ready!)');
-      }
-    }, 10000);
+    const editorElement = document.getElementById("editor")!;
 
-    editor = ace.edit("editor");
+    editor = ace.edit(editorElement);
     editor.setTheme("ace/theme/tomorrow_night_eighties");
-    editor.session.setMode("ace/mode/lua");
     editor.setBehavioursEnabled(true);
     editor.setOptions({
       enableBasicAutocompletion: true,
@@ -142,7 +150,7 @@
     tabs = tabs;
     switchTab(tabs[0])();
 
-    // monaco.editor.create(document.getElementById("monaco")!, {
+    // monaco.editor.create(document.getElementById("editor")!, {
     //   value: localStorage.getItem("script") ?? 'print("Hello World!")',
     //   language: "lua",
     //   theme: "vs-dark",
@@ -159,33 +167,21 @@
     //   }, 3000);
     // });
 
-    invoke("scriptbox_refresh")
-      .then((_scripts) => {
-        scripts = _scripts as string[];
+    invoke("read_config")
+      .then((cfg) => {
+        const { always_on_top, auto_attach, auto_execute, scan_port } = cfg as { [name: string]: boolean };
+        config.alwaysOnTop = always_on_top;
+        config.autoAttach = auto_attach;
+        config.autoExecute = auto_execute;
+        config.scanPort = scan_port;
+        appWindow.setAlwaysOnTop(always_on_top);
       })
-      .catch((e: string) => {
-        console.error("Error on scriptbox_refresh:", e);
+      .catch((err: string) => {
+        console.error("Error on read_config:", err);
       });
-
-    readConfigAndSet();
   });
 
   let titleSession = 0;
-
-  function readConfigAndSet() {
-    invoke("read_config")
-      .then(async (cfg) => {
-        const [alwaysOnTop, autoAttach, autoExecute, scanPort] = cfg as boolean[];
-        config.alwaysOnTop = alwaysOnTop;
-        config.autoAttach = autoAttach;
-        config.autoExecute = autoExecute;
-        config.scanPort = scanPort;
-      })
-      .catch((e: string) => {
-        console.error("Error on read_config:", e);
-      });
-  }
-
   function updateTitle(text: string) {
     const sessionId = ++titleSession;
     title = baseTitle + " " + text;
@@ -199,35 +195,34 @@
 
   function newTab(name?: string, content?: string) {
     // @ts-ignore
-    const session = ace.createEditSession(content || "", "ace/mode/lua");
-    const toAdded = {name: name || `Script ${++sessionIndex}`, session};
-    tabs.push(toAdded);
-    tabs = tabs;
-    switchTab(toAdded)();
+    const session = ace.createEditSession(content ?? "", "ace/mode/lua");
+    const tab = {
+      name: name ?? `Script ${++sessionIndex}`,
+      session
+    };
+    tabs = [ ...tabs, tab ];
+    switchTab(tab)();
   }
 
   function switchTab(tab: SessionInfo) {
     return () => {
       currentTab = tab;
-      (<ace.Editor>editor).setSession(<ace.IEditSession>tab.session);
-    }
+      (<Ace.Editor>editor).setSession(<Ace.EditSession>tab.session);
+    };
   }
 
   function closeTab(tab: SessionInfo) {
     return () => {
-      if (tabs.length <= 1) return; // no close
+      if (tabs.length <= 1) return; // don't close
       const index = tabs.indexOf(tab);
-      tabs.splice(index, 1);
-      tabs = tabs;
+      tabs = tabs.filter((_, i) => i !== index);
 
-      if (currentTab === tab) {
+      if (currentTab === tab)
         switchTab(tabs[tabs.length == index ? tabs.length - 1 : index])();
-      }
     }
   }
 
   let iconClicks = 0;
-
   function onIcon() {
     invoke("open_popup", (++iconClicks) % 5 === 0 ? {
       title: "Synapsploit Credits",
@@ -235,8 +230,8 @@
         "MacSploit was developed by Nexus42.",
         "",
         "Additional credits:",
-        "- Byfron: Emotional damage and irritating",
-        "- DollarNoob: Cloning Synapse UI WPF"
+        "- Nexus42: Not giving us MS API docs",
+        "- Byfron: Emotional damage and beaming",
       ].join("<br/>")
     } : {
       title: "Synapse X Credits",
@@ -248,8 +243,8 @@
         "- Rain: Emotional support and testing"
       ].join("<br/>")
     })
-      .catch((e: string) => {
-        console.error("Error on open_popup:", e);
+      .catch((err: string) => {
+        console.error("Error on open_popup:", err);
       });
   }
 
@@ -263,10 +258,10 @@
 
   function onExecute() {
     invoke("execute", {script: editor.getValue()})
-      .catch((e: string) => {
-        if (e === "NotInjected")
+      .catch((err: string) => {
+        if (err === "NotInjected")
           return updateTitle("(not injected! press attach)");
-        console.error("Error on execute:", e);
+        console.error("Error on execute:", err);
       });
   }
 
@@ -275,34 +270,67 @@
   }
 
   function onOpenFile() {
-    invoke("open_file")
-      .then((script) => {
-        const [path, content] = script as string[];
-        // console.log(path);
-        newTab(path.split('/').pop(), content);
-        // editor.setValue(content);
+    dialog.open({
+      title: "Synapse X - Open File",
+      filters: [
+        {
+          name: "Script Files",
+          extensions: ["lua", "txt"]
+        }
+      ]
+    })
+      .then(async (path) => {
+        if (!path) return;
+        if (Array.isArray(path)) return; // path must be a string
+        const data = await fs.readTextFile(path);
+        newTab(path.split("/").pop(), data);
       })
-      .catch((e: string) => {
-        if (e === "FileNotSelected") return;
-        console.error("Error on open_file:", e);
+      .catch((err) => {
+        console.error("Error on onOpenFile:", err);
       });
   }
 
   function onExecuteFile() {
-    invoke("execute_file")
-      .catch((e: string) => {
-        if (e === "FileNotSelected") return;
-        else if (e === "NotInjected")
-          return updateTitle("(not injected! press attach)");
-        console.error("Error on execute_file:", e);
+    dialog.open({
+      title: "Synapse X - Execute File",
+      filters: [
+        {
+          name: "Script Files",
+          extensions: ["lua", "txt"]
+        }
+      ]
+    })
+      .then(async (path) => {
+        if (!path) return;
+        if (Array.isArray(path)) return; // path must be a string
+        const data = await fs.readTextFile(path);
+        invoke("execute", { script: data })
+          .catch((err: string) => {
+            if (err === "NotInjected")
+              return updateTitle("(not injected! press attach)");
+            console.error("Error on execute:", err);
+          });
+      })
+      .catch((err) => {
+        console.error("Error on onExecuteFile:", err);
       });
   }
 
   function onSaveFile() {
-    invoke("save_file", {contents: editor.getValue()})
-      .catch((e: string) => {
-        if (e === "FileNotSelected") return;
-        console.error("Error on save_file:", e);
+    dialog.save({
+      filters: [
+        {
+          name: "Script Files",
+          extensions: ["lua", "txt"]
+        }
+      ]
+    })
+      .then((path) => {
+        if (!path) return;
+        fs.writeTextFile(path, editor.getValue());
+      })
+      .catch((err) => {
+        console.error("Error on onSaveFile:", err);
       });
   }
 
@@ -314,6 +342,7 @@
     SUCCESS = 0,
     ALREADY_INJECTED = 1,
     ATTACH_FAILED = 2,
+    INTERRUPT = 3,
     FAILURE = 4
   }
 
@@ -327,17 +356,21 @@
           status = AttachStatus.SUCCESS;
           return false;
         })
-        .catch((e: string) => {
-          if (e.includes("Connection refused"))
+        .catch((err: string) => {
+          if (err === "ConnectionRefused") {
             return true;
-          else if (e === "SocketNotAlive") {
-            status = AttachStatus.ATTACH_FAILED;
-            return true;
-          } else if (e === "AlreadyInjected") {
+          } else if (err === "AlreadyInjected") {
             status = AttachStatus.ALREADY_INJECTED;
             return false;
+          } else if (err === "SocketNotAlive") {
+            status = AttachStatus.ATTACH_FAILED;
+            return false;
+          } else if (err === "TimedOut") {
+            status = AttachStatus.INTERRUPT;
+            return false;
           }
-          console.error("Error on attach:", e);
+
+          console.error("Error on attach:", err);
           return false;
         });
       if (!retry) break;
@@ -350,19 +383,22 @@
 
     const status = await attach();
 
-    let message = '';
+    let message = "";
     switch (status) {
       case AttachStatus.SUCCESS:
-        message = '(ready!)';
+        message = "(ready!)";
         break;
       case AttachStatus.ATTACH_FAILED:
-        message = '(failed to attach!)';
+        message = "(failed to attach!)";
+        break;
+      case AttachStatus.INTERRUPT:
+        message = "(connection conflict!)";
         break;
       case AttachStatus.FAILURE:
-        message = '(failed to find roblox!)'
+        message = "(failed to find roblox!)";
         break;
       case AttachStatus.ALREADY_INJECTED:
-        message = '(already injected!)';
+        message = "(already injected!)";
         break;
     }
 
@@ -374,21 +410,35 @@
       title: "Synapse X - Script Hub",
       text: [
         "i dont have scripts to put here",
-        "also does anyone have script hub ss",
+        "please send me some scripts",
         "",
         "waiting for your help 24/7",
         ">> https://t.me/DollarNoob <<"
       ].join("<br/>")
     })
-      .catch((e: string) => {
-        console.error("Error on open_popup:", e);
+      .catch((err: string) => {
+        console.error("Error on open_popup:", err);
       });
   }
 
-  /*session = JSON.parse(localStorage.getItem('session'));
-  editSession = createEditSession(session);
-  editor = editors.my_textarea;
-  editor.setSession(editSession);*/
+  async function onOpenScript(e: MouseEvent) {
+    const target = e.target as HTMLLIElement;
+    const path = target.getAttribute("data-path")!;
+    const data = await fs.readTextFile(path);
+    newTab(path.split("/").pop(), data);
+  }
+
+  function refreshScripts() {
+    fs.readDir("scripts", { dir: BaseDirectory.AppData })
+      .then((paths) => {
+        scripts = paths.map(path => path.path);
+      })
+      .catch((err: string) => {
+        console.error("Error on scriptboxRefresh:", err);
+      });
+  }
+
+  refreshScripts();
 </script>
 
 <header id="topBox" data-tauri-drag-region>
@@ -409,9 +459,8 @@
   <div id="scriptContainer">
     <div id="editorContainer">
       <div id="tabContainer">
-        {#each tabs as session, i}
-          <button data-path={ session } class="tab" class:tab-sel={currentTab === session}
-               on:click={switchTab(session)}>
+        {#each tabs as session}
+          <button data-path={ session } class="tab" class:tab-sel={ currentTab === session } on:click={ switchTab(session) }>
             { session.name }
             <button class="close-tab" on:click|stopPropagation={ closeTab(session) }>×</button>
           </button>
@@ -426,7 +475,7 @@
     <div id="scriptBox">
       <ul>
         {#each scripts as script}
-          <li data-path={ script }>{ script.split("/").pop() }</li>
+          <li data-path={ script } on:dblclick={ onOpenScript }>{ script.split("/").pop() }</li>
         {/each}
       </ul>
     </div>

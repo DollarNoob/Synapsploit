@@ -1,5 +1,6 @@
-use std::io::{Read, Write};
-use std::net::TcpStream;
+use std::io::{Read, Write, ErrorKind};
+use std::time::Duration;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpStream};
 
 const IPC_EXECUTE: u8 = 0;
 const IPC_SETTING: u8 = 1;
@@ -11,9 +12,23 @@ pub struct MsApi {
 
 impl MsApi {
     pub fn connect(port: u16) -> Result<MsApi, String> {
-        match TcpStream::connect(("127.0.0.1", port)) {
-            Ok(stream) => Ok(MsApi { stream }),
-            Err(e) => Err(e.to_string())
+        let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), port);
+        match TcpStream::connect_timeout(&address, Duration::from_millis(100)) {
+            Ok(stream) => {
+                stream.set_nodelay(true).expect("set_nodelay call failed");
+                stream.set_read_timeout(Some(Duration::from_millis(1000))).expect("set_read_timeout call failed");
+                Ok(MsApi { stream })
+            }
+            Err(ref e) if e.kind() == ErrorKind::ConnectionRefused => {
+                Err("ConnectionRefused".into())
+            }
+            Err(ref e) if e.kind() == ErrorKind::TimedOut => {
+                Err("TimedOut".into())
+            }
+            Err(e) => {
+                println!("ConnectionError: {} ({})", e.to_string(), e.kind());
+                Err(e.to_string())
+            }
         }
     }
 
@@ -59,7 +74,14 @@ impl MsApi {
                             Ok(false)
                         }
                     },
-                    Err(_) => Ok(false)
+                    Err(ref e) if e.kind() == ErrorKind::WouldBlock => {
+                        println!("Error: unstable stream");
+                        Ok(false)
+                    }
+                    Err(e) => {
+                        println!("Error: {} {}", e.to_string(), e.kind());
+                        Ok(false)
+                    }
                 }
             }
             Err(_) => Ok(false)
