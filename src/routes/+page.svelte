@@ -431,7 +431,7 @@
   function refreshScripts() {
     fs.readDir("scripts", { dir: BaseDirectory.AppData })
       .then((paths) => {
-        scripts = paths.map(path => path.path);
+        scripts = paths.filter(path => path.name!.endsWith(".lua") || path.name!.endsWith(".txt")).map(path => path.path);
       })
       .catch((err: string) => {
         console.error("Error on scriptboxRefresh:", err);
