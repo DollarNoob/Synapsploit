@@ -520,7 +520,7 @@
 
   @font-face {
     font-family: "Segoe UI";
-    src: url(https://github.com/shipfam/shipfam.com/raw/master/fonts/segoe-ui.woff) format("woff");
+    src: url("../SegoeUI.woff") format("woff");
   }
 
   button {

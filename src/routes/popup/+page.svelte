@@ -55,6 +55,11 @@
     min-height: 0;
   }
 
+  @font-face {
+    font-family: "Segoe UI";
+    src: url("../SegoeUI.woff") format("woff");
+  }
+
   button {
     border: 0;
   }
