@@ -21,7 +21,6 @@
 
     listen("update-text", event => {
       text = (event.payload as string).replace(/<br\/>/g, "\n");
-      console.log(text);
     });
 
     // Small trick to show the window after loading (so you dont see the plain-white loading page)
@@ -44,7 +43,7 @@
   <span>{ text }</span>
 
   <div id="buttonContainer">
-    <button id="closeButton" class="button" on:click={ onClose }>
+    <button class="button" on:click={ onClose }>
       Close
     </button>
   </div>
@@ -54,6 +53,11 @@
   * {
     min-width: 0;
     min-height: 0;
+  }
+
+  @font-face {
+    font-family: "Segoe UI";
+    src: url("../../SegoeUI.woff") format("woff");
   }
 
   button {
