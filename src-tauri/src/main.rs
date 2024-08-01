@@ -62,10 +62,10 @@ fn on_system_tray_event(handle: &AppHandle, event: SystemTrayEvent) {
 fn main() {
     let tray_menu = SystemTrayMenu::new()
         .add_item(
-            CustomMenuItem::new("title", "Synapse X - v1.2").disabled()
+            CustomMenuItem::new("title", "Synapse X - v1.1").disabled()
         )
         .add_item(
-            CustomMenuItem::new("title", "MacSploit Edition").disabled()
+            CustomMenuItem::new("title", "MacSploit v1.2 Edition").disabled()
         )
         .add_native_item(SystemTrayMenuItem::Separator)
         .add_item(
