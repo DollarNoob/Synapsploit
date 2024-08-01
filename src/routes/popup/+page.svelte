@@ -57,7 +57,7 @@
 
   @font-face {
     font-family: "Segoe UI";
-    src: url("../SegoeUI.woff") format("woff");
+    src: url("../../SegoeUI.woff") format("woff");
   }
 
   button {
