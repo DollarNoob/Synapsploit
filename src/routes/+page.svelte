@@ -1,11 +1,11 @@
 <script lang="ts">
-  import {invoke} from "@tauri-apps/api/tauri";
-  import {listen} from "@tauri-apps/api/event";
-  import {appWindow} from "@tauri-apps/api/window";
-  import {showMenu} from "tauri-plugin-context-menu";
-  import {onMount} from "svelte";
   import { dialog, fs } from "@tauri-apps/api";
+  import { listen } from "@tauri-apps/api/event";
   import { BaseDirectory } from "@tauri-apps/api/fs";
+  import { invoke } from "@tauri-apps/api/tauri";
+  import { appWindow } from "@tauri-apps/api/window";
+  import { showMenu } from "tauri-plugin-context-menu";
+  import { onMount } from "svelte";
   import * as monaco from "monaco-editor";
   import ace, { Ace } from "ace-builds";
   import "ace-builds/src-noconflict/mode-lua";
