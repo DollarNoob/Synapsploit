@@ -15,7 +15,7 @@
   import "ace-builds/src-noconflict/ext-searchbox";
   import Icon from "./sxlogosmallwhite_OJJ_icon.ico";
 
-  const version = "v1.1";
+  const version = "v1.1.1";
   const baseTitle = "Synapse X - " + version;
 
   interface SessionInfo {
@@ -365,7 +365,7 @@
           } else if (err === "SocketNotAlive") {
             status = AttachStatus.ATTACH_FAILED;
             return false;
-          } else if (err === "TimedOut") {
+          } else if (err === "TimedOut" || err === "ConnectionConflict") {
             status = AttachStatus.INTERRUPT;
             return false;
           }

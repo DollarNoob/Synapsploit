@@ -7,7 +7,7 @@
   },
   "package": {
     "productName": "Synapse X",
-    "version": "1.1.0"
+    "version": "1.1.1"
   },
   "tauri": {
     "allowlist": {
@@ -41,7 +41,7 @@
     },
     "windows": [
       {
-        "title": "Synapse X - v1.1",
+        "title": "Synapse X - v1.1.1",
         "label": "main",
         "width": 801,
         "height": 355,

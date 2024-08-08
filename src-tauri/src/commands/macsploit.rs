@@ -6,18 +6,10 @@ use crate::{msapi, AppState};
 pub fn attach(state: State<crate::AppState>, handle: AppHandle, port: u16) -> Result<(), String> {
     let mut api_lock = state.api.lock().unwrap();
     if api_lock.is_none() {
-        match msapi::MsApi::connect(port) {
-            Ok(mut api) => {
-                let alive = api.is_alive();
-                match alive {
-                    Ok(true) => {
-                        auto_execute(&mut api, handle).expect("Failed to auto execute");
-                        *api_lock = Some(api);
-                        Ok(())
-                    }
-                    Ok(false) => Err("SocketNotAlive".into()),
-                    Err(e) => Err(e)
-                }
+        match connect(handle, port) {
+            Ok(api) => {
+                *api_lock = Some(api);
+                Ok(())
             }
             Err(e) => Err(e)
         }
@@ -26,23 +18,33 @@ pub fn attach(state: State<crate::AppState>, handle: AppHandle, port: u16) -> Re
         match alive {
             Ok(true) => Err("AlreadyInjected".into()),
             Ok(false) => {
-                let mut api = msapi::MsApi::connect(port)?;
-                let alive = api.is_alive();
-                match alive {
-                    Ok(true) => {
-                        auto_execute(&mut api, handle).expect("Failed to auto execute");
+                match connect(handle, port) {
+                    Ok(api) => {
                         *api_lock = Some(api);
                         Ok(())
-                    }
-                    Ok(false) => {
-                        *api_lock = None;
-                        Err("SocketNotAlive".into())
                     }
                     Err(e) => Err(e)
                 }
             },
             Err(e) => Err(e)
         }
+    }
+}
+
+fn connect(handle: AppHandle, port: u16) -> Result<msapi::MsApi, String> {
+    match msapi::MsApi::connect(port) {
+        Ok(mut api) => {
+            let alive = api.is_alive();
+            match alive {
+                Ok(true) => {
+                    auto_execute(&mut api, handle).expect("Failed to auto execute");
+                    Ok(api)
+                }
+                Ok(false) => Err("SocketNotAlive".into()),
+                Err(e) => Err(e)
+            }
+        }
+        Err(e) => Err(e)
     }
 }
 
