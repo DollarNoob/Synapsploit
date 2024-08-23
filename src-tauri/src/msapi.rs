@@ -16,7 +16,8 @@ impl MsApi {
         match TcpStream::connect_timeout(&address, Duration::from_millis(100)) {
             Ok(stream) => {
                 stream.set_nodelay(true).expect("set_nodelay call failed");
-                stream.set_read_timeout(Some(Duration::from_millis(1000))).expect("set_read_timeout call failed");
+                stream.set_read_timeout(Some(Duration::from_millis(100))).expect("set_read_timeout call failed");
+                println!("Successfully connected on port {}", port);
                 Ok(MsApi { stream })
             }
             Err(ref e) if e.kind() == ErrorKind::ConnectionRefused => {
@@ -65,7 +66,7 @@ impl MsApi {
 
         match self.stream.write_all(&data) {
             Ok(()) => {
-                let mut buffer = [0; 1024];
+                let mut buffer = vec![0u8];
                 match self.stream.read(&mut buffer) {
                     Ok(_) => {
                         if buffer[0] == 0x10 {
@@ -73,13 +74,14 @@ impl MsApi {
                         } else {
                             Ok(false)
                         }
-                    },
+                    }
                     Err(ref e) if e.kind() == ErrorKind::WouldBlock => {
-                        println!("Error: unstable stream");
-                        Ok(false)
+                        println!("Found connection conflict on port {}; another client is already connected", self.stream.peer_addr().unwrap().port());
+                        self.stream.shutdown(std::net::Shutdown::Both).expect("Failed to close socket");
+                        Err("ConnectionConflict".into())
                     }
                     Err(e) => {
-                        println!("Error: {} {}", e.to_string(), e.kind());
+                        println!("ReadError: {} ({})", e.to_string(), e.kind());
                         Ok(false)
                     }
                 }

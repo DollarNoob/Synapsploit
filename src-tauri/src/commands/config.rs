@@ -17,7 +17,7 @@ pub fn read_config(handle: AppHandle) -> Result<Config, String> {
 }
 
 #[tauri::command]
-pub fn write_config(handle: AppHandle, always_on_top: bool, auto_attach: bool, auto_execute: bool, scan_port: bool) -> Result<(), String> {
+pub fn write_config(handle: AppHandle, always_on_top: bool, auto_attach: bool, scan_port: bool) -> Result<(), String> {
     if let Some(main) = handle.get_window("main") {
         main.set_always_on_top(always_on_top).expect("Failed to set always on top");
     }
@@ -27,7 +27,6 @@ pub fn write_config(handle: AppHandle, always_on_top: bool, auto_attach: bool, a
     let cfg = Config {
         always_on_top,
         auto_attach,
-        auto_execute,
         scan_port
     };
 
@@ -35,7 +34,7 @@ pub fn write_config(handle: AppHandle, always_on_top: bool, auto_attach: bool, a
     file.write_all(toml::to_string(&cfg).unwrap().as_bytes()).expect("Failed to write config");
 
     if let Some(window) = handle.get_window("main") {
-        window.emit("config-update", format!("{}{}{}{}", always_on_top as i32, auto_attach as i32, auto_execute as i32, scan_port as i32)).expect("Failed to emit config-update");
+        window.emit("config-update", format!("{}{}{}", always_on_top as i32, auto_attach as i32, scan_port as i32)).expect("Failed to emit config-update");
     }
 
     Ok(())

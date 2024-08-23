@@ -11,6 +11,7 @@ use tauri::{AppHandle, CustomMenuItem, Manager, PhysicalPosition, Position, Syst
 use commands::config;
 use commands::macsploit;
 use commands::window;
+use commands::settings;
 
 pub struct AppState {
     pub api: std::sync::Mutex<Option<msapi::MsApi>>
@@ -21,7 +22,6 @@ pub struct AppState {
 pub struct Config {
     pub always_on_top: bool,
     pub auto_attach: bool,
-    pub auto_execute: bool,
     pub scan_port: bool
 }
 
@@ -62,7 +62,7 @@ fn on_system_tray_event(handle: &AppHandle, event: SystemTrayEvent) {
 fn main() {
     let tray_menu = SystemTrayMenu::new()
         .add_item(
-            CustomMenuItem::new("title", "Synapse X - v1.1").disabled()
+            CustomMenuItem::new("title", "Synapse X - v1.2").disabled()
         )
         .add_item(
             CustomMenuItem::new("title", "MacSploit v1.2 Edition").disabled()
@@ -85,21 +85,19 @@ fn main() {
             config::write_config,
             macsploit::execute,
             macsploit::attach,
+            macsploit::update_setting,
             window::open_options,
             window::open_popup,
             window::open_folder,
-            window::close_window
+            window::close_window,
+            settings::read_setting,
+            settings::write_setting
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")
         .run(|app_handle, event| match event {
             tauri::RunEvent::Ready { } => {
                 let app_data_dir = app_handle.path_resolver().app_data_dir().unwrap();
-
-                let autoexec_dir = app_data_dir.join("autoexec");
-                if !autoexec_dir.exists() {
-                    fs::create_dir_all(autoexec_dir).expect("Failed to create auto execute directory");
-                }
 
                 let scripts_dir = app_data_dir.join("scripts");
                 if !scripts_dir.exists() {
@@ -108,7 +106,7 @@ fn main() {
 
                 let config_dir = app_data_dir.join("config.toml");
                 if !config_dir.exists() {
-                    config::write_config(app_handle.clone(), true, true, true, true).expect("Failed to save default config");
+                    config::write_config(app_handle.clone(), true, true, true).expect("Failed to save default config");
                 }
             }
             tauri::RunEvent::ExitRequested {
