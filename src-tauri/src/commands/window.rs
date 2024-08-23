@@ -16,9 +16,10 @@ pub fn open_options(handle: AppHandle) -> Result<(), String> {
         .visible(false)
         .decorations(false)
         .resizable(false)
-        .inner_size(271.0, 242.0)
+        .title("Synapse X - Options")
+        .inner_size(271.0, 335.0)
         .center()
-        .always_on_top(true)
+        .accept_first_mouse(true)
         .build()
         .unwrap();
 
@@ -47,18 +48,27 @@ pub fn open_popup(handle: AppHandle, title: String, text: String) {
         .visible(false)
         .decorations(false)
         .resizable(false)
+        .title(title)
         .inner_size(popup_width, popup_height)
         .center()
-        .always_on_top(true)
+        .accept_first_mouse(true)
         .build()
         .expect("Failed to create popup window");
 }
 
 #[tauri::command]
-pub fn open_folder(handle: AppHandle, folder_name: String) -> Result<(), String> {
-    let folder_dir = handle.path_resolver().app_data_dir().unwrap().join(folder_name);
-    if !folder_dir.exists() {
-        return Err("Directory does not exist".into());
+pub fn open_folder(handle: AppHandle, directory: Option<String>, folder_name: String) -> Result<(), String> {
+    let folder_dir;
+    if let Some(directory) = directory {
+        folder_dir = std::path::Path::new(&directory).join(folder_name);
+        if !folder_dir.exists() {
+            return Err("Directory does not exist".into());
+        }
+    } else {
+        folder_dir = handle.path_resolver().app_data_dir().unwrap().join(folder_name);
+        if !folder_dir.exists() {
+            return Err("Directory does not exist".into());
+        }
     }
 
     // MacOS only

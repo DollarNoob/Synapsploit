@@ -15,15 +15,21 @@
   import "ace-builds/src-noconflict/ext-searchbox";
   import Icon from "./sxlogosmallwhite_OJJ_icon.ico";
 
-  const version = "v1.1.1";
+  const version = "v1.2";
   const baseTitle = "Synapse X - " + version;
 
   interface SessionInfo {
+    id: string;
     name: string;
     session: monaco.editor.ICodeEditorViewState | Ace.EditSession;
   }
 
-  let sessionIndex = 0;
+  interface ScriptSession {
+    id: string;
+    name: string;
+    absolutePath: string | null;
+  }
+
   let title = baseTitle;
   let tabs: SessionInfo[] = [];
   let currentTab: SessionInfo;
@@ -32,15 +38,13 @@
   let config = {
     alwaysOnTop: true,
     autoAttach: true,
-    autoExecute: true,
     scanPort: true
   };
 
   listen("config-update", (event) => {
-    const [alwaysOnTop, autoAttach, autoExecute, scanPort] = (event.payload as string).split("").map(bool => bool === "1");
+    const [alwaysOnTop, autoAttach, scanPort] = (event.payload as string).split("").map(bool => bool === "1");
     config.alwaysOnTop = alwaysOnTop;
     config.autoAttach = autoAttach;
-    config.autoExecute = autoExecute;
     config.scanPort = scanPort;
     appWindow.setAlwaysOnTop(alwaysOnTop);
   });
@@ -72,6 +76,7 @@
 
   listen("refreshScript", refreshScripts);
 
+  let updateTimeout: number | null = null;
   onMount(async () => {
     const anyWindow = window as any;
     if (!anyWindow.hookFunc) {
@@ -144,11 +149,19 @@
       enableLiveAutocompletion: true
     });
 
-    // @ts-ignore
-    const editSession = ace.createEditSession("", "ace/mode/lua");
-    tabs.push({name: `Script ${++sessionIndex}`, session: editSession});
-    tabs = tabs;
-    switchTab(tabs[0])();
+    const scripts: ScriptSession[] = JSON.parse(localStorage.getItem("scripts") ?? "[]");
+    if (scripts.length === 0) {
+      newTab();
+    } else {
+      for (const script of scripts) {
+        // @ts-ignore
+        const editSession = ace.createEditSession(localStorage.getItem(script.id) ?? "", "ace/mode/lua");
+        tabs.push({ id: script.id, name: script.name, session: editSession });
+      }
+
+      tabs = tabs; // update tabs
+      switchTab(tabs[0])();
+    }
 
     // monaco.editor.create(document.getElementById("editor")!, {
     //   value: localStorage.getItem("script") ?? 'print("Hello World!")',
@@ -166,13 +179,22 @@
     //       localStorage.setItem("script", editor.getValue());
     //   }, 3000);
     // });
+    editor.on("change", () => {
+      if (updateTimeout)
+        clearTimeout(updateTimeout);
+
+      // Only update if text wasn't changed for 3s
+      updateTimeout = setTimeout(() => {
+        localStorage.setItem(currentTab.id, editor.getValue());
+        updateTimeout = null;
+      }, 3000);
+    });
 
     invoke("read_config")
       .then((cfg) => {
-        const { always_on_top, auto_attach, auto_execute, scan_port } = cfg as { [name: string]: boolean };
+        const { always_on_top, auto_attach, scan_port } = cfg as { [name: string]: boolean };
         config.alwaysOnTop = always_on_top;
         config.autoAttach = auto_attach;
-        config.autoExecute = auto_execute;
         config.scanPort = scan_port;
         appWindow.setAlwaysOnTop(always_on_top);
       })
@@ -196,15 +218,49 @@
   function newTab(name?: string, content?: string) {
     // @ts-ignore
     const session = ace.createEditSession(content ?? "", "ace/mode/lua");
+    const tabId = crypto.randomUUID();
+
+    // default name (Script n)
+    if (!name) {
+      const scripts: ScriptSession[] = JSON.parse(localStorage.getItem("scripts") ?? "[]");
+      let sessionIndex = 1;
+      for (const script of scripts) {
+        const nameMatch = script.name.match(/Script (\d+)/);
+        if (nameMatch && script.absolutePath === null) {
+          sessionIndex = parseInt(nameMatch[1]) + 1;
+        }
+      }
+      name = `Script ${sessionIndex}`;
+    }
+
     const tab = {
-      name: name ?? `Script ${++sessionIndex}`,
+      id: tabId,
+      name: name,
       session
     };
+
+    // set local storage
+    const scripts: ScriptSession[] = JSON.parse(localStorage.getItem("scripts") ?? "[]");
+    scripts.push({
+      id: tabId,
+      name: name,
+      absolutePath: null
+    });
+    localStorage.setItem("scripts", JSON.stringify(scripts));
+
     tabs = [ ...tabs, tab ];
     switchTab(tab)();
   }
 
   function switchTab(tab: SessionInfo) {
+    if (updateTimeout) {
+      clearTimeout(updateTimeout);
+      updateTimeout = null;
+
+      // save script if tab change was requested before the 3s save interval
+      localStorage.setItem(currentTab.id, editor.getValue());
+    }
+
     return () => {
       currentTab = tab;
       (<Ace.Editor>editor).setSession(<Ace.EditSession>tab.session);
@@ -216,6 +272,17 @@
       if (tabs.length <= 1) return; // don't close
       const index = tabs.indexOf(tab);
       tabs = tabs.filter((_, i) => i !== index);
+
+      if (updateTimeout) {
+        clearTimeout(updateTimeout);
+        updateTimeout = null;
+      }
+
+      // delete script cache
+      const scripts: ScriptSession[] = JSON.parse(localStorage.getItem("scripts") ?? "[]");
+      const deletedScript: ScriptSession = scripts.splice(index, 1)[0];
+      localStorage.setItem("scripts", JSON.stringify(scripts));
+      localStorage.removeItem(deletedScript.id);
 
       if (currentTab === tab)
         switchTab(tabs[tabs.length == index ? tabs.length - 1 : index])();
@@ -328,6 +395,10 @@
       .then((path) => {
         if (!path) return;
         fs.writeTextFile(path, editor.getValue());
+        refreshScripts();
+
+        // change tab name to the script's name
+        tabs[tabs.indexOf(currentTab)].name = path.split("/").pop()!;
       })
       .catch((err) => {
         console.error("Error on onSaveFile:", err);
@@ -465,7 +536,7 @@
             <button class="close-tab" on:click|stopPropagation={ closeTab(session) }>×</button>
           </button>
         {:else}
-          TODO: EMPTY HANDLING
+          TODO: EMPTY HANDLING (this shouldnt happen though, if you are seeing this please contact me)
         {/each}
         <button id="newTab" on:click={ () => newTab() }>+</button>
       </div>
@@ -623,6 +694,7 @@
     font-size: 12px;
     cursor: default;
     background-color: #858585;
+    height: 20px; /* fix for low macos versions, idk why it breaks */
     line-height: 20px;
     font-style: inherit;
     padding-left: 5px;
