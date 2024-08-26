@@ -1,6 +1,6 @@
 [package]
 name = "synapsploit"
-version = "1.2.0"
+version = "1.2.1"
 description = "Synapse UI for MacSploit"
 authors = ["DollarNoob"]
 edition = "2021"

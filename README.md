@@ -1,5 +1,5 @@
 # Synapsploit (Synapse X UI for MacSploit)
-My first rust project. New to rust!
+A Synapse X themed custom UI for [MacSploit](https://www.raptor.fun/).
 
 # Credits
 Please refer to [Acrillis/Synapse X](https://github.com/Acrillis/SynapseX) for the Synapse X WPF UI source code.

@@ -88,7 +88,6 @@
   function onSettingChange(event: Event) {
     const target = event.target as HTMLInputElement;
 
-    // TODO: send write_setting if attached
     invoke("write_setting", { key: target.id, value: target.checked })
       .then(() => {
         invoke("update_setting", { key: target.id, value: target.checked })
@@ -250,7 +249,7 @@
     </div>
     <div class="checkbox">
       <input type="checkbox" id="sandbox" checked={ setting.sandbox } on:change={ onSettingChange }>
-      <label for="sandbox">Increased Sandbox</label>
+      <label for="sandbox">Decreased Sandbox</label>
     </div>
   </div>
 
