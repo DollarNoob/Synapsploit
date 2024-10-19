@@ -26,9 +26,6 @@
         "readDir": true,
         "scope": ["$APPDATA/scripts", "$APPDATA/scripts/*"]
       },
-      "path": {
-        "all": true
-      },
       "window": {
         "all": false,
         "close": true,

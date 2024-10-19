@@ -15,24 +15,32 @@
   import "ace-builds/src-noconflict/ext-searchbox";
   import Icon from "./sxlogosmallwhite_OJJ_icon.ico";
 
+  // TODO: add cmd + w action and add items in menu
   const version = "v1.2.1";
   const baseTitle = "Synapse X - " + version;
-
-  interface SessionInfo {
-    id: string;
-    name: string;
-    session: monaco.editor.ICodeEditorViewState | Ace.EditSession;
-  }
 
   interface ScriptSession {
     id: string;
     name: string;
+    session: monaco.editor.ICodeEditorViewState | Ace.EditSession;
     absolutePath: string | null;
+    edited: boolean;
+  }
+
+  interface ScriptSessionStore {
+    id: string;
+    name: string;
+    absolutePath: string | null;
+    edited: boolean;
+  }
+
+  interface SessionStore {
+    tabId: string;
   }
 
   let title = baseTitle;
-  let tabs: SessionInfo[] = [];
-  let currentTab: SessionInfo;
+  let tabs: ScriptSession[] = [];
+  let currentTab: ScriptSession;
   let scripts: string[] = [];
   let editor: monaco.editor.IStandaloneCodeEditor | Ace.Editor;
   let config = {
@@ -149,18 +157,19 @@
       enableLiveAutocompletion: true
     });
 
-    const scripts: ScriptSession[] = JSON.parse(localStorage.getItem("scripts") ?? "[]");
+    const scripts: ScriptSessionStore[] = JSON.parse(localStorage.getItem("scripts") ?? "[]");
     if (scripts.length === 0) {
       newTab();
     } else {
       for (const script of scripts) {
         // @ts-ignore
         const editSession = ace.createEditSession(localStorage.getItem(script.id) ?? "", "ace/mode/lua");
-        tabs.push({ id: script.id, name: script.name, session: editSession });
+        tabs.push({ id: script.id, name: script.name, session: editSession, absolutePath: script.absolutePath, edited: script.edited });
       }
 
+      const session: SessionStore = JSON.parse(localStorage.getItem("session") ?? "{}");
       tabs = tabs; // update tabs
-      switchTab(tabs[0])();
+      switchTab(tabs.find(tab => tab.id === session.tabId) ?? tabs[0])();
     }
 
     // monaco.editor.create(document.getElementById("editor")!, {
@@ -179,9 +188,19 @@
     //       localStorage.setItem("script", editor.getValue());
     //   }, 3000);
     // });
+
     editor.on("change", () => {
       if (updateTimeout)
         clearTimeout(updateTimeout);
+
+      const currTab = tabs[tabs.indexOf(currentTab)];
+      if (!currTab.edited) {
+        currTab.edited = true;
+        tabs = tabs; // update dom
+        const scriptSessionStore: ScriptSessionStore[] = JSON.parse(localStorage.getItem("scripts") ?? "{}");
+        scriptSessionStore.find(session => session.id === currTab.id)!.edited = true;
+        localStorage.setItem("scripts", JSON.stringify(scriptSessionStore));
+      }
 
       // Only update if text wasn't changed for 3s
       updateTimeout = setTimeout(() => {
@@ -215,44 +234,49 @@
     }, 3000);
   }
 
-  function newTab(name?: string, content?: string) {
+  function newTab(name?: string, content?: string, path?: string) {
     // @ts-ignore
     const session = ace.createEditSession(content ?? "", "ace/mode/lua");
     const tabId = crypto.randomUUID();
 
     // default name (Script n)
     if (!name) {
-      const scripts: ScriptSession[] = JSON.parse(localStorage.getItem("scripts") ?? "[]");
+      const scripts: ScriptSessionStore[] = JSON.parse(localStorage.getItem("scripts") ?? "[]");
       let sessionIndex = 1;
       for (const script of scripts) {
         const nameMatch = script.name.match(/Script (\d+)/);
         if (nameMatch && script.absolutePath === null) {
-          sessionIndex = parseInt(nameMatch[1]) + 1;
+          const index = parseInt(nameMatch[1]);
+          if (sessionIndex <= index) sessionIndex = index + 1;
         }
       }
       name = `Script ${sessionIndex}`;
     }
 
-    const tab = {
+    const tab: ScriptSession = {
       id: tabId,
       name: name,
-      session
+      session,
+      absolutePath: path ?? null,
+      edited: false
     };
 
     // set local storage
-    const scripts: ScriptSession[] = JSON.parse(localStorage.getItem("scripts") ?? "[]");
+    const scripts: ScriptSessionStore[] = JSON.parse(localStorage.getItem("scripts") ?? "[]");
     scripts.push({
       id: tabId,
       name: name,
-      absolutePath: null
+      absolutePath: path ?? null,
+      edited: false
     });
     localStorage.setItem("scripts", JSON.stringify(scripts));
+    localStorage.setItem(tabId, content ?? ""); // save script on tab open
 
     tabs = [ ...tabs, tab ];
     switchTab(tab)();
   }
 
-  function switchTab(tab: SessionInfo) {
+  function switchTab(tab: ScriptSession) {
     if (updateTimeout) {
       clearTimeout(updateTimeout);
       updateTimeout = null;
@@ -261,13 +285,17 @@
       localStorage.setItem(currentTab.id, editor.getValue());
     }
 
+    const sessionStore: SessionStore = JSON.parse(localStorage.getItem("session") ?? "{}");
+    sessionStore.tabId = tab.id;
+    localStorage.setItem("session", JSON.stringify(sessionStore));
+
     return () => {
       currentTab = tab;
       (<Ace.Editor>editor).setSession(<Ace.EditSession>tab.session);
     };
   }
 
-  function closeTab(tab: SessionInfo) {
+  function closeTab(tab: ScriptSession) {
     return () => {
       if (tabs.length <= 1) return; // don't close
       const index = tabs.indexOf(tab);
@@ -279,8 +307,8 @@
       }
 
       // delete script cache
-      const scripts: ScriptSession[] = JSON.parse(localStorage.getItem("scripts") ?? "[]");
-      const deletedScript: ScriptSession = scripts.splice(index, 1)[0];
+      const scripts: ScriptSessionStore[] = JSON.parse(localStorage.getItem("scripts") ?? "[]");
+      const deletedScript: ScriptSessionStore = scripts.splice(index, 1)[0];
       localStorage.setItem("scripts", JSON.stringify(scripts));
       localStorage.removeItem(deletedScript.id);
 
@@ -350,7 +378,7 @@
         if (!path) return;
         if (Array.isArray(path)) return; // path must be a string
         const data = await fs.readTextFile(path);
-        newTab(path.split("/").pop(), data);
+        newTab(path.split("/").pop(), data, path);
       })
       .catch((err) => {
         console.error("Error on onOpenFile:", err);
@@ -397,8 +425,20 @@
         fs.writeTextFile(path, editor.getValue());
         refreshScripts();
 
-        // change tab name to the script's name
-        tabs[tabs.indexOf(currentTab)].name = path.split("/").pop()!;
+        // update tab session
+        const currTab = tabs[tabs.indexOf(currentTab)];
+        currTab.name = path.split("/").pop()!;
+        currTab.absolutePath = path;
+        currTab.edited = false;
+        tabs = tabs; // refresh dom
+
+        // TODO: check if this works as intended (i think so)
+        const scriptSessionStore: ScriptSessionStore[] = JSON.parse(localStorage.getItem("scripts") ?? "[]");
+        const scriptSession = scriptSessionStore.find(session => session.id === currentTab.id)!;
+        scriptSession.name = path.split("/").pop()!;
+        scriptSession.absolutePath = path;
+        scriptSession.edited = false;
+        localStorage.setItem("scripts", JSON.stringify(scriptSessionStore));
       })
       .catch((err) => {
         console.error("Error on onSaveFile:", err);
@@ -496,7 +536,7 @@
     const target = e.target as HTMLLIElement;
     const path = target.getAttribute("data-path")!;
     const data = await fs.readTextFile(path);
-    newTab(path.split("/").pop(), data);
+    newTab(path.split("/").pop(), data, path);
   }
 
   function refreshScripts() {
@@ -532,13 +572,15 @@
       <div id="tabContainer">
         {#each tabs as session}
           <button data-path={ session } class="tab" class:tab-sel={ currentTab === session } on:click={ switchTab(session) }>
-            { session.name }
+            { (session.edited && session.absolutePath !== null) ? "*" : "" }{ session.name }
             <button class="close-tab" on:click|stopPropagation={ closeTab(session) }>×</button>
           </button>
-        {:else}
-          TODO: EMPTY HANDLING (this shouldnt happen though, if you are seeing this please contact me)
         {/each}
-        <button id="newTab" on:click={ () => newTab() }>+</button>
+        <div id="newTabContainer">
+          <button id="newTab" on:click={ () => newTab() }>
+            +
+          </button>
+        </div>
       </div>
       <div id="editor"/>
     </div>
@@ -687,6 +729,12 @@
   #tabContainer {
     display: flex;
     height: 20px;
+    overflow-x: scroll;
+    white-space: nowrap;
+  }
+
+  #tabContainer::-webkit-scrollbar { 
+    display: none;
   }
 
   .tab {
@@ -698,6 +746,7 @@
     line-height: 20px;
     font-style: inherit;
     padding-left: 5px;
+    min-width: min-content;
   }
 
   .tab-sel {
@@ -712,17 +761,25 @@
     padding: 0 5px 0 0;
   }
 
+  #newTabContainer {
+    min-width: 20px;
+    width: 20px;
+    height: 20px;
+  }
+
   #newTab {
     font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont;
     color: white;
     cursor: default;
+    min-width: 12px;
     width: 12px;
     height: 12px;
     margin-left: 5px;
     margin-top: 4px;
     font-size: 18px;
     background-color: #757575;
-    box-shadow: 0 0 0 1px #959595;
+    outline: 1px solid #959595;
+    padding-left: 1px;
     padding-bottom: 4px;
     text-align: center;
     display: flex;
@@ -732,7 +789,8 @@
 
   #newTab:hover {
     background-color: #555555;
-    box-shadow: 0 0 0 1px #656565;
+    border: none;
+    outline: 1px solid #656565;
   }
 
   #editor {
@@ -741,9 +799,15 @@
 
   #scriptBox {
     width: 122px;
+    min-width: 122px;
     margin-left: 5px;
     color: white;
     background-color: #3C3C3C;
+    overflow-y: scroll;
+  }
+
+  #scriptBox::-webkit-scrollbar { 
+    display: none;
   }
 
   ul {
@@ -764,12 +828,12 @@
 
   li:hover {
     background-color: #354555;
-    box-shadow: 0 0 0 1px gray;
+    box-shadow: 0 0 0 1px inset gray;
   }
 
   li:active {
     background-color: #304565;
-    box-shadow: 0 0 0 1px #354555;
+    box-shadow: 0 0 0 1px inset #354555;
   }
 
   #buttonContainer {

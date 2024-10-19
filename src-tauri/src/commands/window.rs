@@ -17,7 +17,7 @@ pub fn open_options(handle: AppHandle) -> Result<(), String> {
         .decorations(false)
         .resizable(false)
         .title("Synapse X - Options")
-        .inner_size(271.0, 335.0)
+        .inner_size(271.0, 230.0)
         .center()
         .accept_first_mouse(true)
         .build()
