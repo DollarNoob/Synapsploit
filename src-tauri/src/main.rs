@@ -9,8 +9,7 @@ use std::fs;
 use std::fs::create_dir;
 use std::process::Command;
 use directories::UserDirs;
-use tauri::{AboutMetadata, Manager, MenuEvent, Submenu, WindowMenuEvent};
-use tauri::{AppHandle, CustomMenuItem, SystemTray, SystemTrayEvent, SystemTrayMenu, SystemTrayMenuItem, SystemTraySubmenu, Menu, MenuItem};
+use tauri::{AboutMetadata, CustomMenuItem, Manager, Menu, MenuItem, Submenu, WindowMenuEvent};
 use commands::config;
 use commands::macsploit;
 use commands::window;
@@ -70,6 +69,20 @@ fn on_menu_event(event: WindowMenuEvent) {
                 .args([&folder_dir.to_str().unwrap()])
                 .spawn()
                 .unwrap();
+        }
+        "run_iyfe" => {
+            if let Some(state) = event.window().app_handle().try_state::<AppState>() {
+                if let Some(ref mut api) = *state.api.lock().unwrap() {
+                    api.send_script("loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))()".to_string()).expect("Failed to execute");
+                }
+            }
+        }
+        "run_dex" => {
+            if let Some(state) = event.window().app_handle().try_state::<AppState>() {
+                if let Some(ref mut api) = *state.api.lock().unwrap() {
+                    api.send_script("loadstring(game:HttpGet('https://raw.githubusercontent.com/infyiff/backup/main/dex.lua'))()".to_string()).expect("Failed to execute");
+                }
+            }
         }
         _ => {}
     }
