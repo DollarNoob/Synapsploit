@@ -1351,7 +1351,7 @@ ace.define("ace/mode/lua/luaparse",[], function(require, exports, module) {
     , onCreateScope: null
     , onDestroyScope: null
     , onLocalDeclaration: null
-    , luaVersion: '5.3'
+    , luaVersion: 'LuaU'
     , encodingMode: 'none'
   };
 
@@ -1560,6 +1560,15 @@ ace.define("ace/mode/lua/luaparse",[], function(require, exports, module) {
     , assignmentStatement: function(variables, init) {
       return {
           type: 'AssignmentStatement'
+        , variables: variables
+        , init: init
+      };
+    }
+
+    , compoundAssignmentStatement: function(variables, init, operator) {
+      return {
+          type: 'CompoundAssignmentStatement'
+        , operator: operator
         , variables: variables
         , init: init
       };
@@ -1891,6 +1900,9 @@ ace.define("ace/mode/lua/luaparse",[], function(require, exports, module) {
         if (isDecDigit(next)) return scanNumericLiteral();
         if (46 === next) {
           if (46 === input.charCodeAt(index + 2)) return scanVarargLiteral();
+          if (features.compoundAssignments)
+            if (61 === input.charCodeAt(index + 2))
+              return scanPunctuator('..=');
           return scanPunctuator('..');
         }
         return scanPunctuator('.');
@@ -1927,16 +1939,26 @@ ace.define("ace/mode/lua/luaparse",[], function(require, exports, module) {
         return scanPunctuator('[');
 
       case 47: // /
-        if (features.integerDivision)
-          if (47 === next) return scanPunctuator('//');
+        if (47 === next)
+          if (32 === input.charCodeAt(index + 2))
+            if (features.integerDivision) return scanPunctuator('//');
+          if (61 === input.charCodeAt(index + 2))
+            if (features.compoundAssignments) return scanPunctuator('//=');
+        if (features.compoundAssignments)
+          if (61 === next) return scanPunctuator('/=');
         return scanPunctuator('/');
 
       case 38: case 124: // & |
         if (!features.bitwiseOperators)
           break;
-      case 42: case 94: case 37: case 44: case 123: case 125:
-      case 93: case 40: case 41: case 59: case 35: case 45:
-      case 43: // * ^ % , { } ] ( ) ; # - +
+
+      case 42: case 94: case 37: case 45: case 43: // * ^ % - +
+        if (features.compoundAssignments && 61 === next)
+          return scanPunctuator(input.charAt(index) + '=');
+        return scanPunctuator(input.charAt(index));
+
+      case 44: case 123: case 125: case 93:
+      case 40: case 41: case 59: case 35: // , { } ] ( ) ; #
         return scanPunctuator(input.charAt(index));
     }
 
@@ -3056,7 +3078,21 @@ ace.define("ace/mode/lua/luaparse",[], function(require, exports, module) {
       return unexpected(token);
     }
 
-    expect('=');
+    var nodeCreator = ast.assignmentStatement;
+    var assignOperator = '=';
+
+    if (features.compoundAssignments) {
+      switch(token.value) {
+      case '+=': case '-=':
+      case '*=': case '/=': case '//=': case '%=': case '^=':
+      case '..=':
+        nodeCreator = ast.compoundAssignmentStatement;
+        assignOperator = token.value;
+        break;
+      }
+    }
+
+    expect(assignOperator);
 
     var values = [];
 
@@ -3065,7 +3101,7 @@ ace.define("ace/mode/lua/luaparse",[], function(require, exports, module) {
     } while (consume(','));
 
     pushLocation(startMarker);
-    return finishNode(ast.assignmentStatement(targets, values));
+    return finishNode(nodeCreator(targets, values, assignOperator));
   }
 
   function parseIdentifier() {
@@ -3409,6 +3445,18 @@ ace.define("ace/mode/lua/luaparse",[], function(require, exports, module) {
       unicodeEscapes: true,
       imaginaryNumbers: true,
       integerSuffixes: true
+    },
+    'LuaU': {
+      labels: true,
+      emptyStatement: true,
+      hexEscapes: true,
+      skipWhitespaceEscape: true,
+      strictEscapes: true,
+      unicodeEscapes: true,
+      bitwiseOperators: true,
+      integerDivision: true,
+      relaxedBreak: true,
+      compoundAssignments: true
     }
   };
 
