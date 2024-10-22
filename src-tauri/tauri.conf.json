@@ -36,7 +36,8 @@
         "unmaximize": true,
         "unminimize": true,
         "startDragging": true,
-        "setAlwaysOnTop": true
+        "setAlwaysOnTop": true,
+        "setFullscreen": true
       }
     },
     "windows": [

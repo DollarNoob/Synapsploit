@@ -666,6 +666,11 @@
     invoke("close_window");
   }
 
+  function onMaximize() {
+    appWindow.isFullscreen()
+      .then(fullscreen => appWindow.setFullscreen(!fullscreen));
+  }
+
   function onMinimize() {
     appWindow.minimize();
   }
@@ -878,6 +883,9 @@
   <button id="closeButton" class="button" on:click={ onClose }>
     X
   </button>
+  <button id="maxButton" class="button" on:click={ onMaximize }>
+    M
+  </button>
   <button id="miniButton" class="button" on:click={ onMinimize }>
     _
   </button>
@@ -1006,10 +1014,21 @@
     background-color: inherit;
   }
 
-  #miniButton {
+  #maxButton {
     position: absolute;
     top: 1px;
     right: 24px;
+    width: 22px;
+    height: 22px;
+    color: inherit;
+    font-size: 12px;
+    background-color: inherit;
+  }
+
+  #miniButton {
+    position: absolute;
+    top: 1px;
+    right: 47px;
     width: 22px;
     height: 22px;
     color: inherit;
