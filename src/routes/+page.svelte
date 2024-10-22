@@ -16,7 +16,7 @@
   import Icon from "./sxlogosmallwhite_OJJ_icon.ico";
 
   // TODO: add cmd + w action and add items in menu
-  const version = "v1.2.1";
+  const version = "v1.3.0";
   const baseTitle = "Synapse X - " + version;
 
   interface ScriptSession {

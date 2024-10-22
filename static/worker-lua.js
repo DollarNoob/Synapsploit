@@ -1464,6 +1464,7 @@ ace.define("ace/mode/lua/luaparse",[], function(require, exports, module) {
     , unfinishedLongComment: 'unfinished long comment (starting at line %1) near \'%2\''
     , ambiguousSyntax: 'ambiguous syntax (function call x new statement) near \'%1\''
     , noLoopToBreak: 'no loop to break near \'%1\''
+    , noLoopToContinue: 'no loop to continue near \'%1\''
     , labelAlreadyDefined: 'label \'%1\' already defined on line %2'
     , labelNotVisible: 'no visible label \'%1\' for <goto>'
     , gotoJumpInLocalScope: '<goto %1> jumps into the scope of local \'%2\''
@@ -2461,7 +2462,7 @@ ace.define("ace/mode/lua/luaparse",[], function(require, exports, module) {
           return ('goto' === id);
         return false;
       case 5:
-        return 'break' === id || 'local' === id || 'until' === id || 'while' === id;
+        return 'break' === id || 'continue' === id || 'local' === id || 'until' === id || 'while' === id;
       case 6:
         return 'elseif' === id || 'repeat' === id || 'return' === id;
       case 8:
@@ -2739,7 +2740,7 @@ ace.define("ace/mode/lua/luaparse",[], function(require, exports, module) {
       , statement;
 
     while (!isBlockFollow(token)) {
-      if ('return' === token.value || (!features.relaxedBreak && 'break' === token.value)) {
+      if ('return' === token.value || (!features.relaxedBreak && 'break' === token.value) || (!features.relaxedContinue && 'continue' === token.value)) {
         block.push(parseStatement(flowContext));
         break;
       }
@@ -3456,6 +3457,7 @@ ace.define("ace/mode/lua/luaparse",[], function(require, exports, module) {
       bitwiseOperators: true,
       integerDivision: true,
       relaxedBreak: true,
+      relaxedContinue: true,
       compoundAssignments: true
     }
   };
