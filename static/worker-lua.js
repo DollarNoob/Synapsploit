@@ -1486,6 +1486,12 @@ ace.define("ace/mode/lua/luaparse",[], function(require, exports, module) {
       };
     }
 
+    , continueStatement: function() {
+      return {
+          type: 'ContinueStatement'
+      };
+    }
+
     , gotoStatement: function(label) {
       return {
           type: 'GotoStatement'
@@ -2462,11 +2468,11 @@ ace.define("ace/mode/lua/luaparse",[], function(require, exports, module) {
           return ('goto' === id);
         return false;
       case 5:
-        return 'break' === id || 'continue' === id || 'local' === id || 'until' === id || 'while' === id;
+        return 'break' === id || 'local' === id || 'until' === id || 'while' === id;
       case 6:
         return 'elseif' === id || 'repeat' === id || 'return' === id;
       case 8:
-        return 'function' === id;
+        return 'continue' === id || 'function' === id;
     }
     return false;
   }
@@ -2781,6 +2787,10 @@ ace.define("ace/mode/lua/luaparse",[], function(require, exports, module) {
           if (!flowContext.isInLoop())
             raise(token, errors.noLoopToBreak, token.value);
           return parseBreakStatement();
+        case 'continue':    next();
+          if (!flowContext.isInLoop())
+            raise(token, errors.noLoopToContinue, token.value);
+          return parseContinueStatement();
         case 'do':       next(); return parseDoStatement(flowContext);
         case 'goto':     next(); return parseGotoStatement(flowContext);
       }
@@ -2813,6 +2823,10 @@ ace.define("ace/mode/lua/luaparse",[], function(require, exports, module) {
 
   function parseBreakStatement() {
     return finishNode(ast.breakStatement());
+  }
+
+  function parseContinueStatement() {
+    return finishNode(ast.continueStatement());
   }
 
   function parseGotoStatement(flowContext) {
