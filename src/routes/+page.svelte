@@ -190,7 +190,7 @@
       "TweenInfo",
       "UDim", "UDim2",
       "Vector2", "Vector2int16",
-      "Vector3", "Vector3int16",
+      "Vector3", "Vector3int16"
     ];
 
     const globals = [
@@ -433,7 +433,7 @@
     completions.push(...dataTypes.map(type => ({
       caption: type,
       value: type,
-      meta: "DataType"
+      meta: "datatype"
     })));
 
     completions.push(...globals.map(type => ({
@@ -451,7 +451,7 @@
     completions.push(...instances.map(type => ({
       caption: type,
       value: type,
-      meta: "Instance"
+      meta: "instance"
     })));
 
     completions.push(...classes.map(type => ({
