@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/tauri";
   import { appWindow } from "@tauri-apps/api/window";
+  import { documentDir } from "@tauri-apps/api/path";
   import { onMount } from "svelte";
   import Icon from "../sxlogosmallwhite_OJJ_icon.ico";
 
@@ -96,6 +97,29 @@
       })
       .catch((e: string) => {
         console.error("Error on write_setting:", e);
+      });
+  }
+
+  async function onAutoExec() {
+    const dir = await documentDir();
+    invoke("open_folder", { directory: dir, folderName: "Macsploit Automatic Execution" })
+      .catch((e: string) => {
+        console.error("Error on open_folder:", e);
+      });
+  }
+
+  async function onWorkspace() {
+    const dir = await documentDir();
+    invoke("open_folder", { directory: dir, folderName: "Macsploit Workspace" })
+      .catch((e: string) => {
+        console.error("Error on open_folder:", e);
+      });
+  }
+
+  function onScripts() {
+    invoke("open_folder", { folderName: "scripts" })
+      .catch((e: string) => {
+        console.error("Error on open_folder:", e);
       });
   }
 
@@ -230,6 +254,15 @@
   </div>
 
   <div id="buttonContainer">
+    <button class="button" on:click={ onAutoExec }>
+      Open Auto Execute Folder
+    </button>
+    <button class="button" on:click={ onWorkspace }>
+      Open Workspace Folder
+    </button>
+    <button class="button" on:click={ onScripts }>
+      Open Scripts Folder
+    </button>
     <button class="button" on:click={ onClose }>
       Close
     </button>
