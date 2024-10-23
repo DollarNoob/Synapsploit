@@ -7,7 +7,7 @@
   },
   "package": {
     "productName": "Synapse X",
-    "version": "1.3.0"
+    "version": "1.2.1"
   },
   "tauri": {
     "allowlist": {
@@ -26,6 +26,9 @@
         "readDir": true,
         "scope": ["$APPDATA/scripts", "$APPDATA/scripts/*"]
       },
+      "path": {
+        "all": true
+      },
       "window": {
         "all": false,
         "close": true,
@@ -36,13 +39,12 @@
         "unmaximize": true,
         "unminimize": true,
         "startDragging": true,
-        "setAlwaysOnTop": true,
-        "setFullscreen": true
+        "setAlwaysOnTop": true
       }
     },
     "windows": [
       {
-        "title": "Synapse X - v1.3.0",
+        "title": "Synapse X - v1.2.1",
         "label": "main",
         "width": 801,
         "height": 355,
