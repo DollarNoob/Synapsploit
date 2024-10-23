@@ -15,24 +15,32 @@
   import "ace-builds/src-noconflict/ext-searchbox";
   import Icon from "./sxlogosmallwhite_OJJ_icon.ico";
 
-  const version = "v1.2.1";
+  // TODO: add cmd + w action and add items in menu
+  const version = "v1.3.0";
   const baseTitle = "Synapse X - " + version;
-
-  interface SessionInfo {
-    id: string;
-    name: string;
-    session: monaco.editor.ICodeEditorViewState | Ace.EditSession;
-  }
 
   interface ScriptSession {
     id: string;
     name: string;
+    session: monaco.editor.ICodeEditorViewState | Ace.EditSession;
     absolutePath: string | null;
+    edited: boolean;
+  }
+
+  interface ScriptSessionStore {
+    id: string;
+    name: string;
+    absolutePath: string | null;
+    edited: boolean;
+  }
+
+  interface SessionStore {
+    tabId: string;
   }
 
   let title = baseTitle;
-  let tabs: SessionInfo[] = [];
-  let currentTab: SessionInfo;
+  let tabs: ScriptSession[] = [];
+  let currentTab: ScriptSession;
   let scripts: string[] = [];
   let editor: monaco.editor.IStandaloneCodeEditor | Ace.Editor;
   let config = {
@@ -149,18 +157,338 @@
       enableLiveAutocompletion: true
     });
 
-    const scripts: ScriptSession[] = JSON.parse(localStorage.getItem("scripts") ?? "[]");
+    // RLua & Custom Functions Autocomplete
+    const dataTypes = [
+      "Axes",
+      "BrickColor",
+      "CatalogSearchParams",
+      "CFrame",
+      "Color3",
+      "ColorSequence",
+      "ColorSequenceKeypoint",
+      "DateTime",
+      "DockWidgetPluginGuiInfo",
+      "Enum",
+      "Faces",
+      "FloatCurveKey",
+      "Font",
+      "Instance",
+      "NumberRange",
+      "NumberSequence",
+      "NumberSequenceKeypoint",
+      "OverlapParams",
+      "Path2DControlPoint",
+      "PathWaypoint",
+      "PhysicalProperties",
+      "Random",
+      "Ray",
+      "RaycastParams",
+      "Rect",
+      "Region3", "Region3int16",
+      "RotationCurveKey",
+      "SharedTable",
+      "TweenInfo",
+      "UDim", "UDim2",
+      "Vector2", "Vector2int16",
+      "Vector3", "Vector3int16",
+    ];
+
+    const globals = [
+      "rawlen",
+      "elapsedTime", "ElapsedTime",
+      "settings",
+      "tick",
+      "typeof",
+      "UserSettings",
+      "version", "Version"
+    ];
+
+    const tables = [
+      "bit",
+      "bit32",
+      "buffer",
+      "http",
+      "task",
+      "utf8",
+      "syn",
+      "CellId",
+      "PluginDrag",
+      "SecurityCapabilities",
+      "protect_cache",
+      "hooked_cache"
+    ];
+
+    const instances = [
+      "game", "Game",
+      "workspace", "Workspace",
+      "script"
+    ];
+
+    const classes = [
+      "Drawing", "WebSocket", "cache", "crypt", "crypto", "base64", "debug"
+    ];
+
+    const functions = {
+      Drawing: [
+        "Drawing.new",
+        "cleardrawcache",
+        "getrenderproperty",
+        "isrenderobj",
+        "setrenderproperty"
+      ],
+      WebSocket: [
+        "WebSocket.connect",
+        "websocketconnect_c"
+      ],
+      cache: [
+        "cache.invalidate", "cache.iscached", "cache.replace",
+        "cloneref",
+        "compareinstances"
+      ],
+      closures: [
+        "checkcaller",
+        "clonefunction",
+        "getcallingscript",
+        "hookfunc", "hookfunction", "replaceclosure", "swapfunction", "hookfunction_c",
+        "isfunctionhooked",
+        "iscclosure",
+        "islclosure",
+        "isexecutorclosure",
+        // loadstring (Vanilla Lua)
+        "newcclosure", "newcclosure_s",
+        "newlclosure",
+        "checkclosure",
+        "old_metaclosure"
+      ],
+      console: [
+        "consoleclear", // no rconsoleclear
+        "consolecreate", // no rconsolecreate
+        "consoledestroy", // no rconsoledestroy
+        "consoleinput", // no rconsoleinput
+        "rconsoleprint", "consoleprint", "console_print",
+        "rconsolename", "consolesettitle", // no rconsolesettitle
+        "rconsolewarn", "warn",
+        "rconsoleerr"
+      ],
+      crypt: [
+        "crypt.base64encode", "crypt.base64.encode", "crypt.base64_encode",
+        "crypto.base64encode", "crypto.base64.encode", "crypto.base64_encode",
+        "base64.encode", "base64_encode", "base64encode",
+        "crypt.base64decode", "crypt.base64.decode", "crypt.base64_decode",
+        "crypto.base64decode", "crypto.base64.decode", "crypto.base64_decode",
+        "base64.decode", "base64_decode", "base64decode",
+        "crypt.encrypt", "crypt.decrypt",
+        "crypto.encrypt", "crypto.decrypt",
+        "crypt.generatebytes", "crypt.generatekey",
+        "crypto.generatebytes", "crypto.generatekey",
+        "crypt.hash",
+        "crypto.hash"
+      ],
+      debug: [
+        "debug.getconstant", "getconstant",
+        "debug.getconstants", "getconstants",
+        "debug.getinfo", // getinfo (Vanilla Lua)
+        "debug.getproto", "getproto",
+        "getprotoinfo",
+        "debug.getprotos", "getprotos",
+        "debug.getstack",
+        "debug.getupvalue", // getupvalue (Vanilla Lua)
+        "debug.getupvalues", "getupvalues",
+        "debug.setconstant", "setconstant",
+        "debug.setstack",
+        "debug.setupvalue", // setupvalue (Vanilla Lua)
+        "getscriptinfo",
+        "findscriptinfo",
+        "getfunctionaddress"
+      ],
+      filesystem: [
+        "readfile",
+        "listfiles",
+        "writefile",
+        "makefolder",
+        "appendfile",
+        "isfile",
+        "isfolder",
+        "delfile",
+        "delfolder"
+        // loadfile (Vanilla Lua)
+        // no dofile
+      ],
+      input: [
+        "isrbxactive", "isgameactive",
+        // no mouse1click
+        // no mouse1press
+        // no mouse1release
+        // no mouse2click
+        // no mouse2press
+        // no mouse2release
+        // no mousemoveabs
+        "mousemove", "mousemoverel",
+        // no mousescroll
+        "keypress"
+      ],
+      instances: [
+        "fireclickdetector", "fireclickdetector_c",
+        // no getcallbackvalue
+        "getconnections", "getconnections_c",
+        "getcustomasset",
+        "gethiddenproperty",
+        "gethui",
+        "getinstances",
+        "getnilinstances",
+        "isscriptable",
+        "sethiddenproperty",
+        // no setrbxclipboard
+        "setscriptable"
+      ],
+      metatable: [
+        "getrawmetatable",
+        "hookmetamethod", "unsafehookmetamethod",
+        "getnamecallmethod", "setnamecallmethod",
+        "isreadonly",
+        "setrawmetatable",
+        "setreadonly"
+      ],
+      misc: [
+        "identifyexecutor", "getexecutorname",
+        "lz4compress", "lz4decompress",
+        "messagebox",
+        "queue_on_teleport", "queueonteleport",
+        "request",
+        "setclipboard", "toclipboard",
+        "getclipboard",
+        "setfpscap", "set_fps_cap"
+      ],
+      scripts: [
+        "getgc",
+        "getgenv",
+        "getloadedmodules",
+        "getrenv", "getrobloxenv",
+        "getrunningscripts",
+        "getscriptbytecode", "dumpstring",
+        "getscriptclosure", "getscriptfunction",
+        "getscripthash",
+        "getscripts",
+        "getmodulescripts",
+        "getuserdatascript",
+        "getsenv",
+        "getthreadidentity", "get_thread_identity", "getidentity", "getthreadcontext", "get_thread_context",
+        "setthreadidentity", "set_thread_identity", "setidentity", "setthreadcontext", "set_thread_context"
+      ],
+      others: [ // These are not included in UNC documentations
+        "protectgui", "protect_gui", "unprotectgui", "unprotect_gui",
+        "protect_instance", "unprotect_instance",
+        "checkudata", "scanudata",
+        "userdatatotable",
+        "clonetable",
+        "decompile",
+        "getmodules", "get_loaded_modules",
+        "isourclosure", "isexploitclosure",
+        "isgameclosure",
+        "isourfunction", "isexploitfunction",
+        "isexecutorfunction", "is_synapse_function",
+        "getsynasset",
+        "ypcall",
+        "fireproximityprompt",
+        "firetouchinterest", "firetouchinterest_c",
+        "firesignal",
+        "getsignalname",
+        "getsignalfuncs",
+        "signaltest", // ?
+        "set_teleporting_behaviour",
+        "getreg",
+        "getallindexes",
+        "isnetworkowner",
+        "quickLoad",
+        "robloxcrash", // This function just crashes roblox
+        "hang__", "crash__", // This function just self-destructs roblox
+        "httpget", "httpget_c",
+        "http_request", "http_request_c",
+        "httpget_async", "async_request",
+        "httpget_async_index",
+        "get_objects", "get_objects_index",
+        "oldRequire", "oldGameRequire",
+        "getcontext", "setcontext",
+        "setindex",
+        "checkidentity", "printidentity",
+        "teleport_test", // ?
+        "create_illegal", // ?
+        "gethwid",
+        "delay", "Delay",
+        "wait", "Wait",
+        "spawn", "Spawn",
+        "stats", "Stats",
+        "randomstring", "randomString",
+        "lua_sleep",
+        "saveinstance"
+      ]
+    };
+
+    const completions: Ace.Completion[] = Object.values(functions).flat().map(func => ({
+      caption: func,
+      value: func,
+      meta: "function"
+    }));
+
+    completions.push(...dataTypes.map(type => ({
+      caption: type,
+      value: type,
+      meta: "DataType"
+    })));
+
+    completions.push(...globals.map(type => ({
+      caption: type,
+      value: type,
+      meta: "function"
+    })));
+
+    completions.push(...tables.map(type => ({
+      caption: type,
+      value: type,
+      meta: "table"
+    })));
+
+    completions.push(...instances.map(type => ({
+      caption: type,
+      value: type,
+      meta: "Instance"
+    })));
+
+    completions.push(...classes.map(type => ({
+      caption: type,
+      value: type,
+      meta: "class"
+    })));
+
+    const rluaCompleter = {
+      getCompletions: (
+        editor: Ace.Editor,
+        session: Ace.EditSession,
+        pos: Ace.Point,
+        prefix: string,
+        callback: Ace.CompleterCallback
+      ): void => {
+        callback(
+          null,
+          completions
+        );
+      }
+    };
+    editor.completers.push(rluaCompleter);
+
+    const scripts: ScriptSessionStore[] = JSON.parse(localStorage.getItem("scripts") ?? "[]");
     if (scripts.length === 0) {
       newTab();
     } else {
       for (const script of scripts) {
         // @ts-ignore
         const editSession = ace.createEditSession(localStorage.getItem(script.id) ?? "", "ace/mode/lua");
-        tabs.push({ id: script.id, name: script.name, session: editSession });
+        tabs.push({ id: script.id, name: script.name, session: editSession, absolutePath: script.absolutePath, edited: script.edited });
       }
 
+      const session: SessionStore = JSON.parse(localStorage.getItem("session") ?? "{}");
       tabs = tabs; // update tabs
-      switchTab(tabs[0])();
+      switchTab(tabs.find(tab => tab.id === session.tabId) ?? tabs[0])();
     }
 
     // monaco.editor.create(document.getElementById("editor")!, {
@@ -179,9 +507,19 @@
     //       localStorage.setItem("script", editor.getValue());
     //   }, 3000);
     // });
+
     editor.on("change", () => {
       if (updateTimeout)
         clearTimeout(updateTimeout);
+
+      const currTab = tabs[tabs.indexOf(currentTab)];
+      if (!currTab.edited) {
+        currTab.edited = true;
+        tabs = tabs; // update dom
+        const scriptSessionStore: ScriptSessionStore[] = JSON.parse(localStorage.getItem("scripts") ?? "{}");
+        scriptSessionStore.find(session => session.id === currTab.id)!.edited = true;
+        localStorage.setItem("scripts", JSON.stringify(scriptSessionStore));
+      }
 
       // Only update if text wasn't changed for 3s
       updateTimeout = setTimeout(() => {
@@ -215,44 +553,49 @@
     }, 3000);
   }
 
-  function newTab(name?: string, content?: string) {
+  function newTab(name?: string, content?: string, path?: string) {
     // @ts-ignore
     const session = ace.createEditSession(content ?? "", "ace/mode/lua");
     const tabId = crypto.randomUUID();
 
     // default name (Script n)
     if (!name) {
-      const scripts: ScriptSession[] = JSON.parse(localStorage.getItem("scripts") ?? "[]");
+      const scripts: ScriptSessionStore[] = JSON.parse(localStorage.getItem("scripts") ?? "[]");
       let sessionIndex = 1;
       for (const script of scripts) {
         const nameMatch = script.name.match(/Script (\d+)/);
         if (nameMatch && script.absolutePath === null) {
-          sessionIndex = parseInt(nameMatch[1]) + 1;
+          const index = parseInt(nameMatch[1]);
+          if (sessionIndex <= index) sessionIndex = index + 1;
         }
       }
       name = `Script ${sessionIndex}`;
     }
 
-    const tab = {
+    const tab: ScriptSession = {
       id: tabId,
       name: name,
-      session
+      session,
+      absolutePath: path ?? null,
+      edited: false
     };
 
     // set local storage
-    const scripts: ScriptSession[] = JSON.parse(localStorage.getItem("scripts") ?? "[]");
+    const scripts: ScriptSessionStore[] = JSON.parse(localStorage.getItem("scripts") ?? "[]");
     scripts.push({
       id: tabId,
       name: name,
-      absolutePath: null
+      absolutePath: path ?? null,
+      edited: false
     });
     localStorage.setItem("scripts", JSON.stringify(scripts));
+    localStorage.setItem(tabId, content ?? ""); // save script on tab open
 
     tabs = [ ...tabs, tab ];
     switchTab(tab)();
   }
 
-  function switchTab(tab: SessionInfo) {
+  function switchTab(tab: ScriptSession) {
     if (updateTimeout) {
       clearTimeout(updateTimeout);
       updateTimeout = null;
@@ -261,13 +604,17 @@
       localStorage.setItem(currentTab.id, editor.getValue());
     }
 
+    const sessionStore: SessionStore = JSON.parse(localStorage.getItem("session") ?? "{}");
+    sessionStore.tabId = tab.id;
+    localStorage.setItem("session", JSON.stringify(sessionStore));
+
     return () => {
       currentTab = tab;
       (<Ace.Editor>editor).setSession(<Ace.EditSession>tab.session);
     };
   }
 
-  function closeTab(tab: SessionInfo) {
+  function closeTab(tab: ScriptSession) {
     return () => {
       if (tabs.length <= 1) return; // don't close
       const index = tabs.indexOf(tab);
@@ -279,8 +626,8 @@
       }
 
       // delete script cache
-      const scripts: ScriptSession[] = JSON.parse(localStorage.getItem("scripts") ?? "[]");
-      const deletedScript: ScriptSession = scripts.splice(index, 1)[0];
+      const scripts: ScriptSessionStore[] = JSON.parse(localStorage.getItem("scripts") ?? "[]");
+      const deletedScript: ScriptSessionStore = scripts.splice(index, 1)[0];
       localStorage.setItem("scripts", JSON.stringify(scripts));
       localStorage.removeItem(deletedScript.id);
 
@@ -319,6 +666,11 @@
     invoke("close_window");
   }
 
+  function onMaximize() {
+    appWindow.isFullscreen()
+      .then(fullscreen => appWindow.setFullscreen(!fullscreen));
+  }
+
   function onMinimize() {
     appWindow.minimize();
   }
@@ -350,7 +702,7 @@
         if (!path) return;
         if (Array.isArray(path)) return; // path must be a string
         const data = await fs.readTextFile(path);
-        newTab(path.split("/").pop(), data);
+        newTab(path.split("/").pop(), data, path);
       })
       .catch((err) => {
         console.error("Error on onOpenFile:", err);
@@ -397,8 +749,20 @@
         fs.writeTextFile(path, editor.getValue());
         refreshScripts();
 
-        // change tab name to the script's name
-        tabs[tabs.indexOf(currentTab)].name = path.split("/").pop()!;
+        // update tab session
+        const currTab = tabs[tabs.indexOf(currentTab)];
+        currTab.name = path.split("/").pop()!;
+        currTab.absolutePath = path;
+        currTab.edited = false;
+        tabs = tabs; // refresh dom
+
+        // TODO: check if this works as intended (i think so)
+        const scriptSessionStore: ScriptSessionStore[] = JSON.parse(localStorage.getItem("scripts") ?? "[]");
+        const scriptSession = scriptSessionStore.find(session => session.id === currentTab.id)!;
+        scriptSession.name = path.split("/").pop()!;
+        scriptSession.absolutePath = path;
+        scriptSession.edited = false;
+        localStorage.setItem("scripts", JSON.stringify(scriptSessionStore));
       })
       .catch((err) => {
         console.error("Error on onSaveFile:", err);
@@ -496,7 +860,7 @@
     const target = e.target as HTMLLIElement;
     const path = target.getAttribute("data-path")!;
     const data = await fs.readTextFile(path);
-    newTab(path.split("/").pop(), data);
+    newTab(path.split("/").pop(), data, path);
   }
 
   function refreshScripts() {
@@ -519,6 +883,9 @@
   <button id="closeButton" class="button" on:click={ onClose }>
     X
   </button>
+  <button id="maxButton" class="button" on:click={ onMaximize }>
+    M
+  </button>
   <button id="miniButton" class="button" on:click={ onMinimize }>
     _
   </button>
@@ -532,13 +899,15 @@
       <div id="tabContainer">
         {#each tabs as session}
           <button data-path={ session } class="tab" class:tab-sel={ currentTab === session } on:click={ switchTab(session) }>
-            { session.name }
+            { (session.edited && session.absolutePath !== null) ? "*" : "" }{ session.name }
             <button class="close-tab" on:click|stopPropagation={ closeTab(session) }>×</button>
           </button>
-        {:else}
-          TODO: EMPTY HANDLING (this shouldnt happen though, if you are seeing this please contact me)
         {/each}
-        <button id="newTab" on:click={ () => newTab() }>+</button>
+        <div id="newTabContainer">
+          <button id="newTab" on:click={ () => newTab() }>
+            +
+          </button>
+        </div>
       </div>
       <div id="editor"/>
     </div>
@@ -645,10 +1014,21 @@
     background-color: inherit;
   }
 
-  #miniButton {
+  #maxButton {
     position: absolute;
     top: 1px;
     right: 24px;
+    width: 22px;
+    height: 22px;
+    color: inherit;
+    font-size: 12px;
+    background-color: inherit;
+  }
+
+  #miniButton {
+    position: absolute;
+    top: 1px;
+    right: 47px;
     width: 22px;
     height: 22px;
     color: inherit;
@@ -687,6 +1067,12 @@
   #tabContainer {
     display: flex;
     height: 20px;
+    overflow-x: scroll;
+    white-space: nowrap;
+  }
+
+  #tabContainer::-webkit-scrollbar { 
+    display: none;
   }
 
   .tab {
@@ -698,6 +1084,7 @@
     line-height: 20px;
     font-style: inherit;
     padding-left: 5px;
+    min-width: min-content;
   }
 
   .tab-sel {
@@ -712,17 +1099,25 @@
     padding: 0 5px 0 0;
   }
 
+  #newTabContainer {
+    min-width: 20px;
+    width: 20px;
+    height: 20px;
+  }
+
   #newTab {
     font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont;
     color: white;
     cursor: default;
+    min-width: 12px;
     width: 12px;
     height: 12px;
     margin-left: 5px;
     margin-top: 4px;
     font-size: 18px;
     background-color: #757575;
-    box-shadow: 0 0 0 1px #959595;
+    outline: 1px solid #959595;
+    padding-left: 1px;
     padding-bottom: 4px;
     text-align: center;
     display: flex;
@@ -732,7 +1127,8 @@
 
   #newTab:hover {
     background-color: #555555;
-    box-shadow: 0 0 0 1px #656565;
+    border: none;
+    outline: 1px solid #656565;
   }
 
   #editor {
@@ -741,9 +1137,15 @@
 
   #scriptBox {
     width: 122px;
+    min-width: 122px;
     margin-left: 5px;
     color: white;
     background-color: #3C3C3C;
+    overflow-y: scroll;
+  }
+
+  #scriptBox::-webkit-scrollbar { 
+    display: none;
   }
 
   ul {
@@ -764,12 +1166,12 @@
 
   li:hover {
     background-color: #354555;
-    box-shadow: 0 0 0 1px gray;
+    box-shadow: 0 0 0 1px inset gray;
   }
 
   li:active {
     background-color: #304565;
-    box-shadow: 0 0 0 1px #354555;
+    box-shadow: 0 0 0 1px inset #354555;
   }
 
   #buttonContainer {
