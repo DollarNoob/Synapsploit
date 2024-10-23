@@ -4,10 +4,12 @@ mod msapi;
 mod commands;
 
 use std::env;
-use std::cmp::{min, max};
 use std::sync::Mutex;
 use std::fs;
-use tauri::{AppHandle, CustomMenuItem, Manager, PhysicalPosition, Position, SystemTray, SystemTrayEvent, SystemTrayMenu, SystemTrayMenuItem};
+use std::fs::create_dir;
+use std::process::Command;
+use directories::UserDirs;
+use tauri::{AboutMetadata, CustomMenuItem, Manager, Menu, MenuItem, Submenu, WindowMenuEvent};
 use commands::config;
 use commands::macsploit;
 use commands::window;
@@ -25,58 +27,213 @@ pub struct Config {
     pub scan_port: bool
 }
 
-fn on_system_tray_event(handle: &AppHandle, event: SystemTrayEvent) {
-    match event {
-        SystemTrayEvent::LeftClick { .. } => {
-            let window = handle.get_window("main").unwrap();
-            match window.is_visible() {
-                Ok(true) => {
-                    window.set_focus().expect("Failed to set focus");
+fn on_menu_event(event: WindowMenuEvent) {
+    match event.menu_item_id() {
+        "open_autoexecute" => {
+            if let Some(user_dirs) = UserDirs::new() {
+                let document_dir = user_dirs.document_dir().expect("Documents directory does not exist");
+                let autoexec_dir = document_dir.join("Macsploit Automatic Execution");
+                if !autoexec_dir.exists() {
+                    create_dir(&autoexec_dir).expect("Could not create automatic execution folder");
                 }
-                Ok(false) => {}
-                Err(_) => {}
+
+                // MacOS only
+                Command::new("open")
+                    .args([autoexec_dir.to_str().unwrap()])
+                    .spawn()
+                    .unwrap();
+            }
+        }
+        "open_workspace" => {
+            if let Some(user_dirs) = UserDirs::new() {
+                let document_dir = user_dirs.document_dir().expect("Documents directory does not exist");
+                let workspace_dir = document_dir.join("Macsploit Workspace");
+                if !workspace_dir.exists() {
+                    create_dir(&workspace_dir).expect("Could not create workspace folder");
+                }
+
+                // MacOS only
+                Command::new("open")
+                    .args([workspace_dir.to_str().unwrap()])
+                    .spawn()
+                    .unwrap();
+            }
+        }
+        "open_scripts" => {
+            let folder_dir = event.window().app_handle().path_resolver().app_data_dir().unwrap().join("scripts");
+            if !folder_dir.exists() {
+                return;
             }
 
-            if let Some(monitor) = window.current_monitor().ok().flatten() {
-                let monitor_size = monitor.size();
-                let window_size = window.inner_size().expect("Failed to get window size");
-                let window_position = window.outer_position().expect("Failed to get window position");
-
-                let centered_x = min(max(window_position.x, 40), monitor_size.width as i32 - window_size.width as i32 - 40);
-                let centered_y = min(max(window_position.y, 40), monitor_size.height as i32 - window_size.height as i32 - 40);
-                window.set_position(Position::Physical(PhysicalPosition::new(centered_x, centered_y))).expect("Failed to center window position");
-            } else {
-                eprintln!("Failed to get current monitor");
-            }
-        } SystemTrayEvent::MenuItemClick { id, .. } => {
-            match id.as_str() {
-                "exit" => {
-                    handle.exit(0);
+            Command::new("open")
+                .args([&folder_dir.to_str().unwrap()])
+                .spawn()
+                .unwrap();
+        }
+        "run_iyfe" => {
+            if let Some(state) = event.window().app_handle().try_state::<AppState>() {
+                if let Some(ref mut api) = *state.api.lock().unwrap() {
+                    api.send_script("loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))()".to_string()).expect("Failed to execute");
                 }
-                _ => {}
             }
-        } _ => {}
+        }
+        "run_dex" => {
+            if let Some(state) = event.window().app_handle().try_state::<AppState>() {
+                if let Some(ref mut api) = *state.api.lock().unwrap() {
+                    api.send_script("loadstring(game:HttpGet('https://raw.githubusercontent.com/infyiff/backup/main/dex.lua'))()".to_string()).expect("Failed to execute");
+                }
+            }
+        }
+        _ => {}
     }
 }
 
 fn main() {
-    let tray_menu = SystemTrayMenu::new()
-        .add_item(
-            CustomMenuItem::new("title", "Synapse X - v1.2.1").disabled()
+    let menu = Menu::new()
+        .add_submenu(
+            Submenu::new(
+            "Synapse X",
+            Menu::new()
+                .add_native_item(
+                    MenuItem::About(
+                        "Synapse X".to_string(),
+                        AboutMetadata::new()
+                    )
+                )
+                .add_native_item(
+                    MenuItem::Separator
+                )
+                .add_item(
+                    CustomMenuItem::new("settings", "Settings...")
+                        .accelerator("CMD+,")
+                )
+                .add_native_item(
+                    MenuItem::Separator
+                )
+                .add_native_item(
+                    MenuItem::Hide
+                )
+                .add_native_item(
+                    MenuItem::HideOthers
+                )
+                .add_native_item(
+                    MenuItem::ShowAll
+                )
+                .add_native_item(
+                    MenuItem::Separator
+                )
+                .add_native_item(
+                    MenuItem::Quit
+                )
+            )
         )
-        .add_item(
-            CustomMenuItem::new("title", "MacSploit v1.2.4 Edition").disabled()
+        .add_submenu(
+            Submenu::new(
+                "File",
+                Menu::new()
+                    .add_item(
+                        CustomMenuItem::new("file_new", "New")
+                            .accelerator("CMD+N")
+                    )
+                    .add_item(
+                        CustomMenuItem::new("file_open", "Open...")
+                            .accelerator("CMD+O")
+                    )
+                    .add_native_item(
+                        MenuItem::Separator
+                    )
+                    .add_item(
+                        CustomMenuItem::new("open_autoexecute", "Open Auto Execute Folder")
+                    )
+                    .add_item(
+                        CustomMenuItem::new("open_workspace", "Open Workspace Folder")
+                    )
+                    .add_item(
+                        CustomMenuItem::new("open_scripts", "Open Scripts Folder")
+                    )
+                    .add_native_item(
+                        MenuItem::Separator
+                    )
+                    .add_item(
+                        CustomMenuItem::new("file_close", "Close")
+                            .accelerator("CMD+W")
+                    )
+                    .add_item(
+                        CustomMenuItem::new("file_save", "Save")
+                            .accelerator("CMD+S")
+                    )
+                    .add_item(
+                        CustomMenuItem::new("file_saveas", "Save As")
+                            .accelerator("SHIFT+CMD+S")
+                    )
+                    .add_item(
+                        CustomMenuItem::new("file_rename", "Rename...")
+                    )
+            )
         )
-        .add_native_item(SystemTrayMenuItem::Separator)
-        .add_item(
-            CustomMenuItem::new("exit", "Exit")
+        .add_submenu(
+            Submenu::new(
+                "Edit",
+                Menu::new()
+                    .add_native_item(
+                        MenuItem::Undo
+                    )
+                    .add_native_item(
+                        MenuItem::Redo
+                    )
+                    .add_native_item(
+                        MenuItem::Separator
+                    )
+                    .add_native_item(
+                        MenuItem::Cut
+                    )
+                    .add_native_item(
+                        MenuItem::Copy
+                    )
+                    .add_native_item(
+                        MenuItem::Paste
+                    )
+                    .add_native_item(
+                        MenuItem::SelectAll
+                    )
+            )
+        )
+        .add_submenu(
+            Submenu::new(
+                "Run",
+                Menu::new()
+                    .add_item(
+                        CustomMenuItem::new("run_iyfe", "Infinite Yield FE")
+                    )
+                    .add_item(
+                        CustomMenuItem::new("run_dex", "Dex Explorer")
+                    )
+            )
+        )
+        .add_submenu(
+            Submenu::new(
+                "Window",
+                Menu::new()
+                    .add_native_item(
+                        MenuItem::Minimize
+                    )
+                    .add_native_item(
+                        MenuItem::Zoom
+                    )
+                    .add_item(
+                        CustomMenuItem::new("window_center", "Center")
+                            .accelerator("SUPER+CTRL+C")
+                    )
+                    .add_native_item(
+                        MenuItem::EnterFullScreen
+                    )
+            )
         );
-    let system_tray = SystemTray::new().with_menu(tray_menu);
 
     tauri::Builder::default()
         .plugin(tauri_plugin_context_menu::init())
-        .system_tray(system_tray)
-        .on_system_tray_event(on_system_tray_event)
+        .menu(menu)
+        .on_menu_event(on_menu_event)
         .manage(AppState {
             api: Mutex::new(None),
         })
