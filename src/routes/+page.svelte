@@ -539,6 +539,11 @@
       .catch((err: string) => {
         console.error("Error on read_config:", err);
       });
+
+    const tabContainer = document.getElementById("tabContainer")
+    tabContainer.addEventListener("wheel", function (e) {
+      if (e.deltaY !== 0) tabContainer.scrollLeft += e.deltaY;
+    });
   });
 
   let titleSession = 0;
