@@ -1080,7 +1080,7 @@
     font-size: 12px;
     cursor: default;
     background-color: #858585;
-    height: 20px; /* fix for low macos versions, idk why it breaks */
+    height: 20px; /* fix for low macos versions, idk why it breaks -> turns out it didnt work */
     line-height: 20px;
     font-style: inherit;
     padding-left: 5px;
@@ -1132,13 +1132,16 @@
   }
 
   #editor {
-    flex-grow: 1;
+    /* flex-grow: 1; */
+    width: calc(100vw - 143px);
+    height: calc(100vh - 103px);
   }
 
   #scriptBox {
     width: 122px;
     min-width: 122px;
     margin-left: 5px;
+    height: calc(100vh - 83px);
     color: white;
     background-color: #3C3C3C;
     overflow-y: scroll;
