@@ -244,6 +244,7 @@ fn main() {
             macsploit::attach,
             macsploit::update_setting,
             window::open_options,
+            window::open_scripthub,
             window::open_popup,
             window::open_folder,
             window::close_window,

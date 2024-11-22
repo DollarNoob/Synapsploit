@@ -7,7 +7,7 @@
   },
   "package": {
     "productName": "Synapse X",
-    "version": "1.3.0"
+    "version": "1.4.0"
   },
   "tauri": {
     "allowlist": {
@@ -26,6 +26,10 @@
         "readDir": true,
         "scope": ["$APPDATA/scripts", "$APPDATA/scripts/*"]
       },
+      "http": {
+        "request": true,
+        "scope": ["https://scriptblox.com/api/script/*"]
+      },
       "window": {
         "all": false,
         "close": true,
@@ -42,7 +46,7 @@
     },
     "windows": [
       {
-        "title": "Synapse X - v1.3.0",
+        "title": "Synapse X",
         "label": "main",
         "width": 801,
         "height": 355,

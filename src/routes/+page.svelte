@@ -4,6 +4,7 @@
   import { BaseDirectory } from "@tauri-apps/api/fs";
   import { invoke } from "@tauri-apps/api/tauri";
   import { appWindow } from "@tauri-apps/api/window";
+  import { getVersion } from "@tauri-apps/api/app";
   import { showMenu } from "tauri-plugin-context-menu";
   import { onMount } from "svelte";
   import * as monaco from "monaco-editor";
@@ -14,10 +15,10 @@
   import "ace-builds/src-noconflict/ext-language_tools";
   import "ace-builds/src-noconflict/ext-searchbox";
   import Icon from "./sxlogosmallwhite_OJJ_icon.ico";
+    import { base } from "$app/paths";
 
   // TODO: add cmd + w action and add items in menu
-  const version = "v1.3.0";
-  const baseTitle = "Synapse X - " + version;
+  let baseTitle = "Synapse X - v0.0.0";
 
   interface ScriptSession {
     id: string;
@@ -86,6 +87,9 @@
 
   let updateTimeout: number | null = null;
   onMount(async () => {
+    baseTitle = "Synapse X - v" + await getVersion();
+    title = baseTitle;
+
     const anyWindow = window as any;
     if (!anyWindow.hookFunc) {
       anyWindow.hookFunc = async (e: Event) => {
@@ -540,9 +544,9 @@
         console.error("Error on read_config:", err);
       });
 
-    const tabContainer = document.getElementById("tabContainer")
+    const tabContainer = document.getElementById("tabContainer")!;
     tabContainer.addEventListener("wheel", function (e) {
-      if (e.deltaY !== 0) tabContainer.scrollLeft += e.deltaY;
+      if (e.deltaX === 0 && e.deltaY !== 0) tabContainer.scrollLeft += e.deltaY;
     });
   });
 
@@ -646,11 +650,11 @@
     invoke("open_popup", (++iconClicks) % 5 === 0 ? {
       title: "Synapsploit Credits",
       text: [
-        "MacSploit was developed by Nexus42.",
+        "Synapsploit was developed by DollarNoob.",
         "",
         "Additional credits:",
-        "- Nexus42: Not giving us MS API docs",
-        "- Byfron: Emotional damage and beaming",
+        "- Nexus42: Not releasing MacSploit v2",
+        "- Byfron: Postponing Hyperion MacOS",
       ].join("<br/>")
     } : {
       title: "Synapse X Credits",
@@ -846,18 +850,9 @@
   }
 
   function onScriptHub() {
-    invoke("open_popup", {
-      title: "Synapse X - Script Hub",
-      text: [
-        "i dont have scripts to put here",
-        "please send me some scripts",
-        "",
-        "waiting for your help 24/7",
-        ">> https://t.me/DollarNoob <<"
-      ].join("<br/>")
-    })
+    invoke("open_scripthub")
       .catch((err: string) => {
-        console.error("Error on open_popup:", err);
+        console.error("Error on open_scripthub:", err);
       });
   }
 

@@ -137,6 +137,7 @@
     font-size: 13px;
     color: white;
     background-color: #3C3C3C;
+    font-family: "Segoe UI";
   }
 
   .button:hover {
