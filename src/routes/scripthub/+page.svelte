@@ -270,7 +270,7 @@
     </div>
 
     <div id="infoContainer">
-      <img id="scriptPictureBox" alt="Script" src="https://infyiff.github.io/resources/Logo_Small.png" on:error={ onPictureError }>
+      <img id="scriptPictureBox" alt="Script" src={ defaultScripts[0].imageUrl } on:error={ onPictureError }>
 
       <div id="descriptionBox">
         { defaultScripts[0].title } - { defaultScripts[0].gameName }<br/>
