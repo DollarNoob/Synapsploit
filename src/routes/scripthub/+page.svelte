@@ -208,31 +208,36 @@
 
     if (query === "") return;
 
+    const userAgent = "Synapsploit/" + await getVersion();
     const client = await http.getClient();
-    const search = await client.get("https://scriptblox.com/api/script/search", {
-      headers: {
-        "user-agent": "Synapsploit/" + await getVersion()
-      },
-      query: {
-        "q": query
-      },
-      responseType: ResponseType.JSON
-    });
+    const requests = [];
+    for (let i = 0; i < 10; i++) {
+      const search = client.get("https://scriptblox.com/api/script/search", {
+        headers: {
+          "user-agent": userAgent
+        },
+        query: {
+          q: query,
+          page: (i + 1).toString()
+        },
+        responseType: ResponseType.JSON
+      });
 
-    if (!search.ok) {
-      console.error("failed to send request: " + search.status, search.data);
+      requests.push(search);
+    }
+
+    const searches = await Promise.all(requests);
+
+    if (searches.every(search => !search.ok)) {
+      console.error("failed to send request: " + searches[0].status, searches[0].data);
       return;
     }
 
-    const result = (search.data as SearchResult).result;
-    if (!result) {
-      console.error("failed to parse request", search.data);
-      return;
-    }
+    if ((searches[0].data as SearchResult).result.totalPages === 0) return;
 
-    if (result.totalPages === 0) return;
+    const result = (searches.map(search => (search.data as SearchResult).result.scripts)).flat();
 
-    scripts = result.scripts.map(script => ({
+    scripts = result.filter(script => !script.isPatched).map(script => ({
       id: script._id,
       title: script.title,
       script: script.script,
@@ -264,7 +269,7 @@
     <div id="scriptBox">
       <ul>
         {#each [...defaultScripts, ...scripts] as script}
-          <li id={ "script_" + script.id } on:click={ loadScript }>{ script.title }</li>
+          <li role="presentation" id={ "script_" + script.id } on:click={ loadScript }>{ script.title }</li>
         {/each}
       </ul>
     </div>
