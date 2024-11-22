@@ -273,9 +273,9 @@
       <img id="scriptPictureBox" alt="Script" src="https://infyiff.github.io/resources/Logo_Small.png" on:error={ onPictureError }>
 
       <div id="descriptionBox">
-        Infinite Yield FE - Universal Script 📌<br/>
+        { defaultScripts[0].title } - { defaultScripts[0].gameName }<br/>
         <br/>
-        The best command line script for roblox.
+        { defaultScripts[0].description }
       </div>
 
       <div id="buttonContainer">
