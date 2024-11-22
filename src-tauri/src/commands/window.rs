@@ -27,6 +27,32 @@ pub fn open_options(handle: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn open_scripthub(handle: AppHandle) -> Result<(), String> {
+    if let Some(window) = handle.get_window("scripthub") {
+        window.center().expect("Failed to center window");
+        window.set_focus().expect("Failed to set focus");
+        return Ok(())
+    }
+
+    WindowBuilder::new(
+        &handle,
+        "scripthub",
+        WindowUrl::App("scripthub".into())
+    )
+        .visible(false)
+        .decorations(false)
+        .resizable(false)
+        .title("Synapse X - Script Hub")
+        .inner_size(440.0, 360.0)
+        .center()
+        .accept_first_mouse(true)
+        .build()
+        .unwrap();
+
+    Ok(())
+}
+
+#[tauri::command]
 pub fn open_popup(handle: AppHandle, title: String, text: String) {
     let popup_width = 271.0;
     let popup_height = 97.0 + (12.0 * text.matches("<br/>").count() as f64);
