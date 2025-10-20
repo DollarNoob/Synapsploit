@@ -1,82 +1,38 @@
 {
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Synapse X",
+  "version": "2.0.0",
+  "identifier": "fun.raptor.synapsploit",
   "build": {
     "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "npm run build",
-    "devPath": "http://localhost:1420",
-    "distDir": "../build"
+    "frontendDist": "../dist"
   },
-  "package": {
-    "productName": "Synapse X",
-    "version": "1.4.0"
-  },
-  "tauri": {
-    "allowlist": {
-      "all": false,
-      "shell": {
-        "all": false,
-        "open": true
-      },
-      "dialog": {
-        "open": true,
-        "save": true
-      },
-      "fs": {
-        "readFile": true,
-        "writeFile": true,
-        "readDir": true,
-        "scope": ["$APPDATA/scripts", "$APPDATA/scripts/*"]
-      },
-      "http": {
-        "request": true,
-        "scope": ["https://scriptblox.com/api/script/*"]
-      },
-      "window": {
-        "all": false,
-        "close": true,
-        "hide": true,
-        "show": true,
-        "maximize": true,
-        "minimize": true,
-        "unmaximize": true,
-        "unminimize": true,
-        "startDragging": true,
-        "setAlwaysOnTop": true,
-        "setFullscreen": true
-      }
-    },
+  "app": {
     "windows": [
       {
         "title": "Synapse X",
-        "label": "main",
-        "width": 801,
-        "height": 355,
-        "minWidth": 801,
+        "width": 800,
+        "height": 360,
+        "minWidth": 800,
         "minHeight": 300,
         "decorations": false,
-        "alwaysOnTop": false,
-        "acceptFirstMouse": true
+        "acceptFirstMouse": true,
+        "visible": false
       }
     ],
     "security": {
       "csp": null
-    },
-    "bundle": {
-      "active": true,
-      "targets": "all",
-      "identifier": "fun.raptor.synapsploit",
-      "icon": [
-        "icons/16x16.png",
-        "icons/24x24.png",
-        "icons/32x32.png",
-        "icons/48x48.png",
-        "icons/256x256.png",
-        "icons/ico.icns",
-        "icons/icon.ico"
-      ]
-    },
-    "systemTray": {
-      "iconPath": "icons/256x256.png",
-      "iconAsTemplate": false
     }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/256x256.png",
+      "icons/ico.icns",
+      "icons/icon.ico"
+    ]
   }
 }

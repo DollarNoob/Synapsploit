@@ -21,10 +21,8 @@ x86 (Intel): `npm run tauri build -- --target x86_64-apple-darwin`<br>
 Universal (Both): `npm run tauri build -- --target universal-apple-darwin`<br>
 <br>
 The bundle will be located at: `Synapsploit/src-tauri/target/{target}/release/bundle/dmg/Synapse X_{version}_{target}.dmg`
-## Tauri + SvelteKit + TypeScript
 
-This template should help get you started developing with Tauri, SvelteKit and TypeScript in Vite.
-
+## Tauri + React + TypeScript
 ### Recommended IDE Setup
 
 [VS Code](https://code.visualstudio.com/) + [Svelte](https://marketplace.visualstudio.com/items?itemName=svelte.svelte-vscode) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer).
