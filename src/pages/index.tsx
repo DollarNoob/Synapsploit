@@ -119,7 +119,7 @@ export default function Index() {
     if (!file) return;
 
     const written = await writeTextFile(file, editor.current.getValue()).then(() => true)
-      .catch((err: string) => message(err, { title: "Synapse X - Save File", kind: "error"}).then(() => false));
+      .catch((err: string) => message(err, { title: "Synapse X - Save File", kind: "error" }).then(() => false));
     if (written) {
       if (!sessionStore.session) return;
 
@@ -154,7 +154,7 @@ export default function Index() {
         appWindow.setFocus();
         return;
       }
-      message(err.payload as string, { title: "Synapse X - Options", kind: "error"});
+      message(err.payload as string, { title: "Synapse X - Options", kind: "error" });
     });
   }
 
@@ -329,7 +329,7 @@ export default function Index() {
 
         const script = await readTextFile(await path.join("scripts", name), { baseDir: BaseDirectory.AppData })
           .catch((err: string) => {
-            message(err, { title: "Synapse X", kind: "error"});
+            message(err, { title: "Synapse X", kind: "error" });
             return null;
           });
         if (!script) return;
@@ -341,7 +341,7 @@ export default function Index() {
         const directory = await path.join("scripts", name);
         const script = await readTextFile(directory, { baseDir: BaseDirectory.AppData })
           .catch((err: string) => {
-            message(err, { title: "Synapse X", kind: "error"});
+            message(err, { title: "Synapse X", kind: "error" });
             return null;
           });
         if (!script) return;
@@ -386,10 +386,10 @@ export default function Index() {
     // cannot differentiate between folder and file but who cares?
     const scriptsExists = await exists("scripts", { baseDir: BaseDirectory.AppData });
     if (!scriptsExists) {
-      const scriptsCreated = await mkdir("scripts", { baseDir: BaseDirectory.AppData })
+      const scriptsCreated = await mkdir("scripts", { baseDir: BaseDirectory.AppData, recursive: true })
         .then(() => true)
         .catch((err: string) => {
-          message(err, { title: "Synapse X", kind: "error"});
+          message(err, { title: "Synapse X", kind: "error" });
           return false;
         });
       if (!scriptsCreated) return;
@@ -397,7 +397,7 @@ export default function Index() {
 
     const paths = await readDir("scripts", { baseDir: BaseDirectory.AppData })
       .catch((err: string) => {
-        message(err, { title: "Synapse X", kind: "error"});
+        message(err, { title: "Synapse X", kind: "error" });
         return null;
       });
     if (!paths) return;
@@ -408,7 +408,9 @@ export default function Index() {
 
   useEffect(() => {
     getCurrentWindow().show();
+  }, []);
 
+  useEffect(() => {
     // i cba to do shit in rust so ill just do everything in js
     const data: Uint8Array[] = [];
     const unlistenData = listen<number[]>("data", (event) => {
@@ -481,7 +483,7 @@ export default function Index() {
       unlistenFinish.then((unlisten) => unlisten());
       unlistenDisconnect.then((unlisten) => unlisten());
       unlistenSettings.then((unlisten) => unlisten());
-    }
+    };
   }, [ client, attached ]);
 
   async function pollAttach() {
@@ -568,7 +570,7 @@ export default function Index() {
       const cfg = await readTextFile("config.json", { baseDir: BaseDirectory.AppData })
         .catch((err: string) => {
           if (!err.includes("No such file or directory (os error 2)")) {
-            message(err, { title: "Synapse X", kind: "error"});
+            message(err, { title: "Synapse X", kind: "error" });
           }
         });
       if (!cfg) return;
@@ -577,7 +579,7 @@ export default function Index() {
       try {
         config = JSON.parse(cfg);
       } catch (err) {
-        message("Failed to parse config", { title: "Synapse X", kind: "error"});
+        message("Failed to parse config", { title: "Synapse X", kind: "error" });
         console.error("Failed to parse config:", err);
         return;
       }

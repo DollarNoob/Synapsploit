@@ -109,10 +109,10 @@ export default function Options() {
 					if (err.includes("No such file or directory (os error 2)")) {
 						writeTextFile("config.json", JSON.stringify(settings.ui), { baseDir: BaseDirectory.AppData })
 							.catch((err: string) => {
-								message(err, { title: "Synapse X - Options", kind: "error"});
+								message(err, { title: "Synapse X - Options", kind: "error" });
 							});
 					} else {
-						message(err, { title: "Synapse X - Options", kind: "error"});
+						message(err, { title: "Synapse X - Options", kind: "error" });
 					}
 				});
 			if (cfg) {
@@ -120,7 +120,7 @@ export default function Options() {
 				try {
 					config = JSON.parse(cfg);
 				} catch (err) {
-					message("Failed to parse config", { title: "Synapse X - Options", kind: "error"});
+					message("Failed to parse config", { title: "Synapse X - Options", kind: "error" });
 					console.error("Failed to parse config:", err);
 					return;
 				}
@@ -145,14 +145,14 @@ export default function Options() {
 					return exist;
 				})
 				.catch((err: string) => {
-					message(err, { title: "Synapse X - Options", kind: "error"});
+					message(err, { title: "Synapse X - Options", kind: "error" });
 					return false;
 				});
 			if (!settingsExists) return;
 
 			const lines = await readTextFileLines("ms-settings", { baseDir: BaseDirectory.Download })
 				.catch((err: string) => {
-					message(err, { title: "Synapse X - Options", kind: "error"});
+					message(err, { title: "Synapse X - Options", kind: "error" });
 					return null;
 				});
 			if (!lines) return;
@@ -198,7 +198,7 @@ export default function Options() {
 		if (key && key in settings.ui) {
 			writeTextFile("config.json", JSON.stringify(settings.ui), { baseDir: BaseDirectory.AppData })
 				.catch((err: string) => {
-					message(err, { title: "Synapse X - Options", kind: "error"});
+					message(err, { title: "Synapse X - Options", kind: "error" });
 				});
 		} else {
 			const set: Omit<Settings, "ui"> & Partial<Pick<Settings, "ui">> = { ...newSettings };
@@ -210,7 +210,7 @@ export default function Options() {
 				).join("\n");
 			writeTextFile("ms-settings", payload, { baseDir: BaseDirectory.Download })
 				.catch((err: string) => {
-					message(err, { title: "Synapse X - Options", kind: "error"});
+					message(err, { title: "Synapse X - Options", kind: "error" });
 				});
 		}
 
